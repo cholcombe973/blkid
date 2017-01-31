@@ -1,0 +1,11 @@
+[package]
+name = "blkid"
+version = "0.1.0"
+description = "Safe blkid-sys wrapper"
+documentation = "https://docs.rs/blkid"
+repository = "https://github.com/cholcombe973/blkid"
+license = "MIT"
+authors = ["Chris Holcombe <xfactor973@gmail.com>"]
+
+[dependencies]
+blkid-sys = "^0.1"
