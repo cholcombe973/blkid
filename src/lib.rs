@@ -90,6 +90,11 @@ impl From<Error> for BlkidError {
         BlkidError::IoError(err)
     }
 }
+impl From<BlkidError> for Error {
+    fn from(err: BlkidError) -> Error {
+        Error::new(::std::io::ErrorKind::Other, err)
+    }
+}
 
 fn get_error() -> String {
     let error = errno();
@@ -151,9 +156,11 @@ impl BlkId {
                 0 => Ok(false),
                 1 => Ok(true),
                 _ => {
-                    Err(BlkidError::new(format!("Unknown return code from \
+                    Err(BlkidError::new(format!(
+                        "Unknown return code from \
                                                  blkid_probe_has_value: {}",
-                                                ret_code)))
+                        ret_code
+                    )))
                 }
             }
         }
@@ -181,9 +188,11 @@ impl BlkId {
                 0 => Ok(false),
                 1 => Ok(true),
                 _ => {
-                    Err(BlkidError::new(format!("Unknown return code from \
+                    Err(BlkidError::new(format!(
+                        "Unknown return code from \
                                                  blkid_probe_has_value: {}",
-                                                ret_code)))
+                        ret_code
+                    )))
                 }
             }
         }
@@ -229,8 +238,10 @@ impl BlkId {
                 0 => Ok(false),
                 1 => Ok(true),
                 _ => {
-                    Err(BlkidError::new(format!("Unknown return code from blkid_known_fstype: {}",
-                                                ret_code)))
+                    Err(BlkidError::new(format!(
+                        "Unknown return code from blkid_known_fstype: {}",
+                        ret_code
+                    )))
                 }
             }
         }
