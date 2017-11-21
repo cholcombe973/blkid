@@ -1,3 +1,9 @@
+// Copyright (c) 2017 Chris Holcombe
+
+// Licensed under the MIT license <LICENSE or
+// http://opensource.org/licenses/MIT> This file may not be copied, modified,
+// or distributed except according to those terms.
+
 //! See https://www.kernel.org/pub/linux/utils/util-linux/v2.21/libblkid-docs/index.html
 //! for the reference manual to the FFI bindings
 extern crate blkid_sys;
