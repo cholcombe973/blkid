@@ -352,18 +352,10 @@ pub mod dev;
 pub mod tag;
 
 // pub fn blkid_put_cache(cache: blkid_cache);
-// pub fn blkid_get_cache(cache: *mut blkid_cache,
-// filename: *const ::std::os::raw::c_char)
-// -> ::std::os::raw::c_int;
-// pub fn blkid_dev_devname(dev: blkid_dev) -> *const ::std::os::raw::c_char;
-// pub fn blkid_dev_iterate_begin(cache: blkid_cache) -> blkid_dev_iterate;
 // pub fn blkid_dev_set_search(iter: blkid_dev_iterate,
 // search_type: *mut ::std::os::raw::c_char,
 // search_value: *mut ::std::os::raw::c_char)
 // -> ::std::os::raw::c_int;
-// pub fn blkid_dev_next(iterate: blkid_dev_iterate, dev: *mut blkid_dev)
-// -> ::std::os::raw::c_int;
-// pub fn blkid_dev_iterate_end(iterate: blkid_dev_iterate);
 // pub fn blkid_devno_to_devname(devno: dev_t)
 // -> *mut ::std::os::raw::c_char;
 // pub fn blkid_devno_to_wholedisk(dev: dev_t,
@@ -378,7 +370,6 @@ pub mod tag;
 // devname: *const ::std::os::raw::c_char,
 // flags: ::std::os::raw::c_int) -> blkid_dev;
 // pub fn blkid_get_dev_size(fd: ::std::os::raw::c_int) -> blkid_loff_t;
-// pub fn blkid_verify(cache: blkid_cache, dev: blkid_dev) -> blkid_dev;
 // pub fn blkid_get_tag_value(cache: blkid_cache,
 // tagname: *const ::std::os::raw::c_char,
 // devname: *const ::std::os::raw::c_char)
@@ -387,12 +378,6 @@ pub mod tag;
 // token: *const ::std::os::raw::c_char,
 // value: *const ::std::os::raw::c_char)
 // -> *mut ::std::os::raw::c_char;
-// pub fn blkid_tag_iterate_begin(dev: blkid_dev) -> blkid_tag_iterate;
-// pub fn blkid_tag_next(iterate: blkid_tag_iterate,
-// type_: *mut *const ::std::os::raw::c_char,
-// value: *mut *const ::std::os::raw::c_char)
-// -> ::std::os::raw::c_int;
-// pub fn blkid_tag_iterate_end(iterate: blkid_tag_iterate);
 // pub fn blkid_dev_has_tag(dev: blkid_dev,
 // type_: *const ::std::os::raw::c_char,
 // value: *const ::std::os::raw::c_char)
