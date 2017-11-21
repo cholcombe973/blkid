@@ -111,6 +111,22 @@ pub struct BlkId {
     probe: blkid_probe,
 }
 
+fn result(val: ::libc::c_int) -> Result<(), BlkidError> {
+    match val {
+        0 => Ok(()),
+        _ => Err(BlkidError::new(format!("Blkid error {}", val))),
+    }
+}
+
+fn result_ptr_mut<T>(val: *mut T) -> Result<*mut T, BlkidError> {
+    if ptr::eq(ptr::null(), val) {
+        return Err(BlkidError::new("Blkid returned NULL".into()));
+    } else {
+        Ok(val)
+    }
+}
+
+
 impl BlkId {
     pub fn new(file: &Path) -> Result<BlkId, BlkidError> {
         let path = try!(CString::new(file.as_os_str().to_string_lossy().as_ref()));
@@ -118,7 +134,7 @@ impl BlkId {
             // pub fn blkid_do_probe(pr: blkid_probe) -> ::std::os::raw::c_int;
             // pub fn blkid_do_safeprobe(pr: blkid_probe) -> ::std::os::raw::c_int;
             // pub fn blkid_do_fullprobe(pr: blkid_probe) -> ::std::os::raw::c_int;
-            let probe = blkid_new_probe_from_filename(path.as_ptr());
+            let probe = result_ptr_mut(blkid_new_probe_from_filename(path.as_ptr()))?;
             Ok(BlkId { probe: probe })
         }
     }
