@@ -347,6 +347,10 @@ impl Drop for BlkId {
     }
 }
 
+pub mod cache;
+pub mod dev;
+pub mod tag;
+
 // pub fn blkid_put_cache(cache: blkid_cache);
 // pub fn blkid_get_cache(cache: *mut blkid_cache,
 // filename: *const ::std::os::raw::c_char)
