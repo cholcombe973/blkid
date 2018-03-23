@@ -17,6 +17,7 @@ use std::io::Error;
 use std::path::Path;
 use std::ptr;
 use std::string::FromUtf8Error;
+use std::collections::HashMap;
 
 use blkid_sys::*;
 use errno::errno;
@@ -219,6 +220,33 @@ impl BlkId {
             Ok(ret_code)
         }
     }
+
+    /// Retrieve the Nth item (Name, Value) in the probing result, (0..self.numof_values())
+    pub fn get_value(&self, num: i32) -> Result<(String, String), BlkidError> {
+        let mut name_ptr: *const ::libc::c_char = ptr::null();
+        let mut data_ptr: *const ::libc::c_char = ptr::null();
+        let mut len = 0;
+
+        unsafe {
+            let ret_code =
+                blkid_probe_get_value(self.probe, num, &mut name_ptr, &mut data_ptr, &mut len);
+            if ret_code < 0 {
+                return Err(BlkidError::new(get_error()));
+            }
+            let name_value = CStr::from_ptr(name_ptr as *const ::libc::c_char);
+            let data_value = CStr::from_ptr(data_ptr as *const ::libc::c_char);
+            Ok((name_value.to_string_lossy().into_owned(),
+                data_value.to_string_lossy().into_owned()))
+        }
+    }
+
+    /// Retrieve a HashMap of all the probed values
+    pub fn get_values_map(&self) -> Result<HashMap<String, String>, BlkidError> {
+        Ok((0..self.numof_values()?)
+               .map(|i| self.get_value(i).expect("'i' is in range"))
+               .collect())
+    }
+
     pub fn get_devno(&self) -> u64 {
         unsafe { blkid_probe_get_devno(self.probe) }
     }
@@ -497,10 +525,4 @@ pub mod tag;
 // flag: ::std::os::raw::c_int,
 // names:
 // mut *mut ::std::os::raw::c_char)
-// -> ::std::os::raw::c_int;
-// pub fn blkid_probe_get_value(pr: blkid_probe,
-// num: ::std::os::raw::c_int,
-// name: *mut *const ::std::os::raw::c_char,
-// data: *mut *const ::std::os::raw::c_char,
-// len: *mut usize)
 // -> ::std::os::raw::c_int;
