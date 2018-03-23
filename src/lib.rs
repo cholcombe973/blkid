@@ -135,7 +135,7 @@ impl BlkId {
             // pub fn blkid_do_safeprobe(pr: blkid_probe) -> ::std::os::raw::c_int;
             // pub fn blkid_do_fullprobe(pr: blkid_probe) -> ::std::os::raw::c_int;
             let probe = result_ptr_mut(blkid_new_probe_from_filename(path.as_ptr()))?;
-            Ok(BlkId { probe: probe })
+            Ok(BlkId { probe })
         }
     }
     /// Calls probing functions in all enabled chains. The superblocks chain is enabled by
