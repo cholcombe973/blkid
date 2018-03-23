@@ -17,6 +17,7 @@ use std::io::Error;
 use std::path::Path;
 use std::ptr;
 use std::string::FromUtf8Error;
+use std::collections::HashMap;
 
 use blkid_sys::*;
 use errno::errno;
@@ -129,13 +130,12 @@ fn result_ptr_mut<T>(val: *mut T) -> Result<*mut T, BlkidError> {
 
 impl BlkId {
     pub fn new(file: &Path) -> Result<BlkId, BlkidError> {
-        let path = try!(CString::new(file.as_os_str().to_string_lossy().as_ref()));
+        let path = CString::new(file.as_os_str().to_string_lossy().as_ref())?;
         unsafe {
             // pub fn blkid_do_probe(pr: blkid_probe) -> ::std::os::raw::c_int;
-            // pub fn blkid_do_safeprobe(pr: blkid_probe) -> ::std::os::raw::c_int;
             // pub fn blkid_do_fullprobe(pr: blkid_probe) -> ::std::os::raw::c_int;
             let probe = result_ptr_mut(blkid_new_probe_from_filename(path.as_ptr()))?;
-            Ok(BlkId { probe: probe })
+            Ok(BlkId { probe })
         }
     }
     /// Calls probing functions in all enabled chains. The superblocks chain is enabled by
@@ -152,8 +152,31 @@ impl BlkId {
         }
         Ok(())
     }
+
+    /// This function gathers probing results from all enabled chains and checks for ambivalent
+    /// results (e.g. more filesystems on the device).
+    ///
+    /// This is string-based NAME=value interface only.
+    ///
+    /// Note about suberblocks chain -- the function does not check for filesystems when a
+    /// RAID signature is detected. The function also does not check for collision between RAIDs.
+    /// The first detected RAID is returned. The function checks for collision between partition
+    /// table and RAID signature -- it's recommended to enable partitions chain together with
+    /// superblocks chain.
+    /// Returns Ok(0) on success, Ok(1) on success and nothing was detected, Ok(-2) if the probe
+    /// was ambivalent.
+    pub fn do_safe_probe(&self) -> Result<i32, BlkidError> {
+        unsafe {
+            let ret_code = blkid_do_safeprobe(self.probe);
+            if ret_code == -1 {
+                return Err(BlkidError::new(get_error()));
+            }
+            Ok(ret_code)
+        }
+    }
+
     pub fn lookup_value(&self, name: &str) -> Result<String, BlkidError> {
-        let name = try!(CString::new(name));
+        let name = CString::new(name)?;
         let mut data_ptr: *const ::libc::c_char = ptr::null();
         let mut len = 0;
         unsafe {
@@ -167,7 +190,7 @@ impl BlkId {
         }
     }
     pub fn has_value(&self, name: &str) -> Result<bool, BlkidError> {
-        let name = try!(CString::new(name));
+        let name = CString::new(name)?;
 
         unsafe {
             let ret_code = blkid_probe_has_value(self.probe, name.as_ptr());
@@ -197,6 +220,33 @@ impl BlkId {
             Ok(ret_code)
         }
     }
+
+    /// Retrieve the Nth item (Name, Value) in the probing result, (0..self.numof_values())
+    pub fn get_value(&self, num: i32) -> Result<(String, String), BlkidError> {
+        let mut name_ptr: *const ::libc::c_char = ptr::null();
+        let mut data_ptr: *const ::libc::c_char = ptr::null();
+        let mut len = 0;
+
+        unsafe {
+            let ret_code =
+                blkid_probe_get_value(self.probe, num, &mut name_ptr, &mut data_ptr, &mut len);
+            if ret_code < 0 {
+                return Err(BlkidError::new(get_error()));
+            }
+            let name_value = CStr::from_ptr(name_ptr as *const ::libc::c_char);
+            let data_value = CStr::from_ptr(data_ptr as *const ::libc::c_char);
+            Ok((name_value.to_string_lossy().into_owned(),
+                data_value.to_string_lossy().into_owned()))
+        }
+    }
+
+    /// Retrieve a HashMap of all the probed values
+    pub fn get_values_map(&self) -> Result<HashMap<String, String>, BlkidError> {
+        Ok((0..self.numof_values()?)
+               .map(|i| self.get_value(i).expect("'i' is in range"))
+               .collect())
+    }
+
     pub fn get_devno(&self) -> u64 {
         unsafe { blkid_probe_get_devno(self.probe) }
     }
@@ -253,7 +303,7 @@ impl BlkId {
         unsafe { Ok(blkid_probe_get_fd(self.probe)) }
     }
     pub fn known_fstype(&self, fstype: &str) -> Result<bool, BlkidError> {
-        let fstype = try!(CString::new(fstype));
+        let fstype = CString::new(fstype)?;
         unsafe {
             let ret_code = blkid_known_fstype(fstype.as_ptr());
             match ret_code {
@@ -306,6 +356,53 @@ impl BlkId {
     /// logical sector size (BLKSSZGET ioctl) in bytes or 0.
     pub fn get_topology_physical_sector_size(tp: blkid_topology) -> u64 {
         unsafe { blkid_topology_get_physical_sector_size(tp) }
+    }
+
+    /// Enables the partitions probing for non-binary interface.
+    pub fn enable_partitions(&self) -> Result<&Self, BlkidError> {
+        unsafe {
+            let ret_code = blkid_probe_enable_partitions(self.probe, 1);
+            if ret_code < 0 {
+                return Err(BlkidError::new(get_error()));
+            }
+        }
+        Ok(self)
+    }
+
+    /// Sets probing flags to the partitions prober. This method is optional.
+    /// BLKID_PARTS_* flags
+    pub fn set_partition_flags(&self, flags: u32) -> Result<(&Self), BlkidError> {
+        unsafe {
+            let ret_code = blkid_probe_set_partitions_flags(self.probe, flags as i32);
+            if ret_code < 0 {
+                return Err(BlkidError::new(get_error()));
+            }
+        }
+        Ok(&self)
+    }
+
+    /// Enables the superblocks probing for non-binary interface.
+    pub fn enable_superblocks(&self) -> Result<(&Self), BlkidError> {
+        unsafe {
+            let ret_code = blkid_probe_enable_superblocks(self.probe, 1);
+            if ret_code < 0 {
+                return Err(BlkidError::new(get_error()));
+            }
+        }
+        Ok(&self)
+    }
+
+    /// Sets probing flags to the superblocks prober. This method is optional, the default
+    /// are BLKID_SUBLKS_DEFAULTS flags.
+    /// flags are BLKID_SUBLKS_* flags
+    pub fn set_superblock_flags(&self, flags: u32) -> Result<&Self, BlkidError> {
+        unsafe {
+            let ret_code = blkid_probe_set_superblocks_flags(self.probe, flags as i32);
+            if ret_code < 0 {
+                return Err(BlkidError::new(get_error()));
+            }
+        }
+        Ok(&self)
     }
 
     // pub fn blkid_probe_get_partitions(pr: blkid_probe) -> blkid_partlist;
@@ -424,12 +521,6 @@ pub mod tag;
 // mut *const ::std::os::raw::c_char,
 // usage: *mut ::std::os::raw::c_int)
 // -> ::std::os::raw::c_int;
-// pub fn blkid_probe_enable_superblocks(pr: blkid_probe,
-// enable: ::std::os::raw::c_int)
-// -> ::std::os::raw::c_int;
-// pub fn blkid_probe_set_superblocks_flags(pr: blkid_probe,
-// flags: ::std::os::raw::c_int)
-// -> ::std::os::raw::c_int;
 // pub fn blkid_probe_reset_superblocks_filter(pr: blkid_probe)
 // -> ::std::os::raw::c_int;
 // pub fn blkid_probe_invert_superblocks_filter(pr: blkid_probe)
@@ -445,9 +536,6 @@ pub mod tag;
 // -> ::std::os::raw::c_int;
 // pub fn blkid_known_pttype(pttype: *const ::std::os::raw::c_char)
 // -> ::std::os::raw::c_int;
-// pub fn blkid_probe_enable_partitions(pr: blkid_probe,
-// enable: ::std::os::raw::c_int)
-// -> ::std::os::raw::c_int;
 // pub fn blkid_probe_reset_partitions_filter(pr: blkid_probe)
 // -> ::std::os::raw::c_int;
 // pub fn blkid_probe_invert_partitions_filter(pr: blkid_probe)
@@ -456,13 +544,4 @@ pub mod tag;
 // flag: ::std::os::raw::c_int,
 // names:
 // mut *mut ::std::os::raw::c_char)
-// -> ::std::os::raw::c_int;
-// pub fn blkid_probe_set_partitions_flags(pr: blkid_probe,
-// flags: ::std::os::raw::c_int)
-// -> ::std::os::raw::c_int;
-// pub fn blkid_probe_get_value(pr: blkid_probe,
-// num: ::std::os::raw::c_int,
-// name: *mut *const ::std::os::raw::c_char,
-// data: *mut *const ::std::os::raw::c_char,
-// len: *mut usize)
 // -> ::std::os::raw::c_int;
