@@ -380,6 +380,31 @@ impl BlkId {
         }
         Ok(&self)
     }
+
+    /// Enables the superblocks probing for non-binary interface.
+    pub fn enable_superblocks(&self) -> Result<(&Self), BlkidError> {
+        unsafe {
+            let ret_code = blkid_probe_enable_superblocks(self.probe, 1);
+            if ret_code < 0 {
+                return Err(BlkidError::new(get_error()));
+            }
+        }
+        Ok(&self)
+    }
+
+    /// Sets probing flags to the superblocks prober. This method is optional, the default
+    /// are BLKID_SUBLKS_DEFAULTS flags.
+    /// flags are BLKID_SUBLKS_* flags
+    pub fn set_superblock_flags(&self, flags: u32) -> Result<&Self, BlkidError> {
+        unsafe {
+            let ret_code = blkid_probe_set_superblocks_flags(self.probe, flags as i32);
+            if ret_code < 0 {
+                return Err(BlkidError::new(get_error()));
+            }
+        }
+        Ok(&self)
+    }
+
     // pub fn blkid_probe_get_partitions(pr: blkid_probe) -> blkid_partlist;
     // pub fn blkid_partlist_numof_partitions(ls: blkid_partlist)
     // -> ::std::os::raw::c_int;
@@ -495,12 +520,6 @@ pub mod tag;
 // name:
 // mut *const ::std::os::raw::c_char,
 // usage: *mut ::std::os::raw::c_int)
-// -> ::std::os::raw::c_int;
-// pub fn blkid_probe_enable_superblocks(pr: blkid_probe,
-// enable: ::std::os::raw::c_int)
-// -> ::std::os::raw::c_int;
-// pub fn blkid_probe_set_superblocks_flags(pr: blkid_probe,
-// flags: ::std::os::raw::c_int)
 // -> ::std::os::raw::c_int;
 // pub fn blkid_probe_reset_superblocks_filter(pr: blkid_probe)
 // -> ::std::os::raw::c_int;
