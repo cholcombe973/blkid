@@ -132,7 +132,6 @@ impl BlkId {
         let path = CString::new(file.as_os_str().to_string_lossy().as_ref())?;
         unsafe {
             // pub fn blkid_do_probe(pr: blkid_probe) -> ::std::os::raw::c_int;
-            // pub fn blkid_do_safeprobe(pr: blkid_probe) -> ::std::os::raw::c_int;
             // pub fn blkid_do_fullprobe(pr: blkid_probe) -> ::std::os::raw::c_int;
             let probe = result_ptr_mut(blkid_new_probe_from_filename(path.as_ptr()))?;
             Ok(BlkId { probe })
@@ -152,6 +151,29 @@ impl BlkId {
         }
         Ok(())
     }
+
+    /// This function gathers probing results from all enabled chains and checks for ambivalent
+    /// results (e.g. more filesystems on the device).
+    ///
+    /// This is string-based NAME=value interface only.
+    ///
+    /// Note about suberblocks chain -- the function does not check for filesystems when a
+    /// RAID signature is detected. The function also does not check for collision between RAIDs.
+    /// The first detected RAID is returned. The function checks for collision between partition
+    /// table and RAID signature -- it's recommended to enable partitions chain together with
+    /// superblocks chain.
+    /// Returns Ok(0) on success, Ok(1) on success and nothing was detected, Ok(-2) if the probe
+    /// was ambivalent.
+    pub fn do_safe_probe(&self) -> Result<i32, BlkidError> {
+        unsafe {
+            let ret_code = blkid_do_safeprobe(self.probe);
+            if ret_code == -1 {
+                return Err(BlkidError::new(get_error()));
+            }
+            Ok(ret_code)
+        }
+    }
+
     pub fn lookup_value(&self, name: &str) -> Result<String, BlkidError> {
         let name = CString::new(name)?;
         let mut data_ptr: *const ::libc::c_char = ptr::null();
