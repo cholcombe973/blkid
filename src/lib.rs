@@ -330,6 +330,28 @@ impl BlkId {
         unsafe { blkid_topology_get_physical_sector_size(tp) }
     }
 
+    /// Enables the partitions probing for non-binary interface.
+    pub fn enable_partitions(&self) -> Result<&Self, BlkidError> {
+        unsafe {
+            let ret_code = blkid_probe_enable_partitions(self.probe, 1);
+            if ret_code < 0 {
+                return Err(BlkidError::new(get_error()));
+            }
+        }
+        Ok(self)
+    }
+
+    /// Sets probing flags to the partitions prober. This method is optional.
+    /// BLKID_PARTS_* flags
+    pub fn set_partition_flags(&self, flags: u32) -> Result<(&Self), BlkidError> {
+        unsafe {
+            let ret_code = blkid_probe_set_partitions_flags(self.probe, flags as i32);
+            if ret_code < 0 {
+                return Err(BlkidError::new(get_error()));
+            }
+        }
+        Ok(&self)
+    }
     // pub fn blkid_probe_get_partitions(pr: blkid_probe) -> blkid_partlist;
     // pub fn blkid_partlist_numof_partitions(ls: blkid_partlist)
     // -> ::std::os::raw::c_int;
@@ -467,9 +489,6 @@ pub mod tag;
 // -> ::std::os::raw::c_int;
 // pub fn blkid_known_pttype(pttype: *const ::std::os::raw::c_char)
 // -> ::std::os::raw::c_int;
-// pub fn blkid_probe_enable_partitions(pr: blkid_probe,
-// enable: ::std::os::raw::c_int)
-// -> ::std::os::raw::c_int;
 // pub fn blkid_probe_reset_partitions_filter(pr: blkid_probe)
 // -> ::std::os::raw::c_int;
 // pub fn blkid_probe_invert_partitions_filter(pr: blkid_probe)
@@ -478,9 +497,6 @@ pub mod tag;
 // flag: ::std::os::raw::c_int,
 // names:
 // mut *mut ::std::os::raw::c_char)
-// -> ::std::os::raw::c_int;
-// pub fn blkid_probe_set_partitions_flags(pr: blkid_probe,
-// flags: ::std::os::raw::c_int)
 // -> ::std::os::raw::c_int;
 // pub fn blkid_probe_get_value(pr: blkid_probe,
 // num: ::std::os::raw::c_int,
