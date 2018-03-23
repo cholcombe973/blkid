@@ -129,7 +129,7 @@ fn result_ptr_mut<T>(val: *mut T) -> Result<*mut T, BlkidError> {
 
 impl BlkId {
     pub fn new(file: &Path) -> Result<BlkId, BlkidError> {
-        let path = try!(CString::new(file.as_os_str().to_string_lossy().as_ref()));
+        let path = CString::new(file.as_os_str().to_string_lossy().as_ref())?;
         unsafe {
             // pub fn blkid_do_probe(pr: blkid_probe) -> ::std::os::raw::c_int;
             // pub fn blkid_do_safeprobe(pr: blkid_probe) -> ::std::os::raw::c_int;
@@ -153,7 +153,7 @@ impl BlkId {
         Ok(())
     }
     pub fn lookup_value(&self, name: &str) -> Result<String, BlkidError> {
-        let name = try!(CString::new(name));
+        let name = CString::new(name)?;
         let mut data_ptr: *const ::libc::c_char = ptr::null();
         let mut len = 0;
         unsafe {
@@ -167,7 +167,7 @@ impl BlkId {
         }
     }
     pub fn has_value(&self, name: &str) -> Result<bool, BlkidError> {
-        let name = try!(CString::new(name));
+        let name = CString::new(name)?;
 
         unsafe {
             let ret_code = blkid_probe_has_value(self.probe, name.as_ptr());
@@ -253,7 +253,7 @@ impl BlkId {
         unsafe { Ok(blkid_probe_get_fd(self.probe)) }
     }
     pub fn known_fstype(&self, fstype: &str) -> Result<bool, BlkidError> {
-        let fstype = try!(CString::new(fstype));
+        let fstype = CString::new(fstype)?;
         unsafe {
             let ret_code = blkid_known_fstype(fstype.as_ptr());
             match ret_code {
