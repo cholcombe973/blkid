@@ -10,6 +10,7 @@ extern crate blkid_sys;
 extern crate errno;
 extern crate libc;
 
+use std::collections::HashMap;
 use std::error::Error as err;
 use std::ffi::{CStr, CString, IntoStringError, NulError};
 use std::fmt;
@@ -17,7 +18,6 @@ use std::io::Error;
 use std::path::Path;
 use std::ptr;
 use std::string::FromUtf8Error;
-use std::collections::HashMap;
 
 use blkid_sys::*;
 use errno::errno;
@@ -127,7 +127,6 @@ fn result_ptr_mut<T>(val: *mut T) -> Result<*mut T, BlkidError> {
     }
 }
 
-
 impl BlkId {
     pub fn new(file: &Path) -> Result<BlkId, BlkidError> {
         let path = CString::new(file.as_os_str().to_string_lossy().as_ref())?;
@@ -143,14 +142,14 @@ impl BlkId {
     /// It's necessary to call this routine in a loop to get results from all probing functions
     /// in all chains. The probing is reset by blkid_reset_probe() or by filter functions.
     /// This is string-based NAME=value interface only.
-    pub fn do_probe(&self) -> Result<(), BlkidError> {
+    pub fn do_probe(&self) -> Result<i32, BlkidError> {
         unsafe {
             let ret_code = blkid_do_probe(self.probe);
             if ret_code < 0 {
                 return Err(BlkidError::new(get_error()));
             }
+            Ok(ret_code)
         }
-        Ok(())
     }
 
     /// This function gathers probing results from all enabled chains and checks for ambivalent
@@ -200,13 +199,11 @@ impl BlkId {
             match ret_code {
                 0 => Ok(false),
                 1 => Ok(true),
-                _ => {
-                    Err(BlkidError::new(format!(
-                        "Unknown return code from \
-                                                 blkid_probe_has_value: {}",
-                        ret_code
-                    )))
-                }
+                _ => Err(BlkidError::new(format!(
+                    "Unknown return code from \
+                     blkid_probe_has_value: {}",
+                    ret_code
+                ))),
             }
         }
     }
@@ -235,16 +232,39 @@ impl BlkId {
             }
             let name_value = CStr::from_ptr(name_ptr as *const ::libc::c_char);
             let data_value = CStr::from_ptr(data_ptr as *const ::libc::c_char);
-            Ok((name_value.to_string_lossy().into_owned(),
-                data_value.to_string_lossy().into_owned()))
+            Ok((
+                name_value.to_string_lossy().into_owned(),
+                data_value.to_string_lossy().into_owned(),
+            ))
+        }
+    }
+
+    // https://github.com/karelzak/util-linux/blob/master/Documentation/blkid.txt
+    /// Retrieve the value of a specific attribute for a particualr device.  
+    /// This can be used to determine attributes such as TYPE, UUID, LABEL, and PARTUUID
+    /// Returns empty string if the requested attribute is not set for a particular device
+    pub fn get_tag_value(&self, tagname: &str, devname: &Path) -> Result<String, BlkidError> {
+        let tag_name = CString::new(tagname)?;
+        let dev_name = CString::new(devname.as_os_str().to_string_lossy().as_ref())?;
+        let cache: blkid_cache = ptr::null_mut();
+        unsafe {
+            let ret_value: *mut ::libc::c_char =
+                blkid_get_tag_value(cache, tag_name.as_ptr(), dev_name.as_ptr());
+            println!("This ran");
+            if ret_value.is_null() {
+                return Ok("".to_string());
+            }
+            let data_value = CString::from_raw(ret_value);
+            println!("Converting...");
+            Ok(data_value.into_string()?)
         }
     }
 
     /// Retrieve a HashMap of all the probed values
     pub fn get_values_map(&self) -> Result<HashMap<String, String>, BlkidError> {
         Ok((0..self.numof_values()?)
-               .map(|i| self.get_value(i).expect("'i' is in range"))
-               .collect())
+            .map(|i| self.get_value(i).expect("'i' is in range"))
+            .collect())
     }
 
     pub fn get_devno(&self) -> u64 {
@@ -259,13 +279,11 @@ impl BlkId {
             match ret_code {
                 0 => Ok(false),
                 1 => Ok(true),
-                _ => {
-                    Err(BlkidError::new(format!(
-                        "Unknown return code from \
-                                                 blkid_probe_has_value: {}",
-                        ret_code
-                    )))
-                }
+                _ => Err(BlkidError::new(format!(
+                    "Unknown return code from \
+                     blkid_probe_has_value: {}",
+                    ret_code
+                ))),
             }
         }
     }
@@ -309,12 +327,10 @@ impl BlkId {
             match ret_code {
                 0 => Ok(false),
                 1 => Ok(true),
-                _ => {
-                    Err(BlkidError::new(format!(
-                        "Unknown return code from blkid_known_fstype: {}",
-                        ret_code
-                    )))
-                }
+                _ => Err(BlkidError::new(format!(
+                    "Unknown return code from blkid_known_fstype: {}",
+                    ret_code
+                ))),
             }
         }
     }
