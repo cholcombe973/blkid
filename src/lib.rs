@@ -240,7 +240,7 @@ impl BlkId {
     }
 
     // https://github.com/karelzak/util-linux/blob/master/Documentation/blkid.txt
-    /// Retrieve the value of a specific attribute for a particualr device.  
+    /// Retrieve the value of a specific attribute for a particular device.  
     /// This can be used to determine attributes such as TYPE, UUID, LABEL, and PARTUUID
     /// Returns empty string if the requested attribute is not set for a particular device
     pub fn get_tag_value(&self, tagname: &str, devname: &Path) -> Result<String, BlkidError> {
@@ -250,12 +250,10 @@ impl BlkId {
         unsafe {
             let ret_value: *mut ::libc::c_char =
                 blkid_get_tag_value(cache, tag_name.as_ptr(), dev_name.as_ptr());
-            println!("This ran");
             if ret_value.is_null() {
                 return Ok("".to_string());
             }
             let data_value = CString::from_raw(ret_value);
-            println!("Converting...");
             Ok(data_value.into_string()?)
         }
     }
