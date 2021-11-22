@@ -33,9 +33,6 @@ pub enum BlkidError {
 
     #[error(transparent)]
     Errno(#[from] errno::Errno),
-
-    #[error("Other")]
-    Other(String),
 }
 
 impl BlkidError {
