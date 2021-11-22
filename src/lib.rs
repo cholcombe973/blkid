@@ -11,9 +11,7 @@ extern crate errno;
 extern crate libc;
 
 use std::collections::HashMap;
-use std::error::Error as err;
 use std::ffi::{CStr, CString, IntoStringError, NulError};
-use std::fmt;
 use std::io::Error;
 use std::path::Path;
 use std::ptr;
@@ -23,89 +21,25 @@ use blkid_sys::*;
 use errno::errno;
 
 /// Custom error handling for the library
-#[derive(Debug)]
+#[derive(Debug, thiserror::Error)]
 pub enum BlkidError {
-    FromUtf8Error(FromUtf8Error),
-    NulError(NulError),
-    Error(String),
-    IoError(Error),
-    IntoStringError(IntoStringError),
+    #[error(transparent)]
+    FromUtf8Error(#[from] FromUtf8Error),
+    #[error(transparent)]
+    NulError(#[from] NulError),
+    #[error(transparent)]
+    IoError(#[from] Error),
+    #[error(transparent)]
+    IntoStringError(#[from] IntoStringError),
+    #[error(transparent)]
+    Errno(#[from] errno::Errno),
+    #[error("Other")]
+    Other(String),
 }
 
-impl fmt::Display for BlkidError {
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        f.write_str(self.description())
-    }
-}
-
-impl err for BlkidError {
-    fn description(&self) -> &str {
-        match *self {
-            BlkidError::FromUtf8Error(ref e) => e.description(),
-            BlkidError::NulError(ref e) => e.description(),
-            BlkidError::Error(ref e) => &e,
-            BlkidError::IoError(ref e) => e.description(),
-            BlkidError::IntoStringError(ref e) => e.description(),
-        }
-    }
-    fn cause(&self) -> Option<&err> {
-        match *self {
-            BlkidError::FromUtf8Error(ref e) => e.cause(),
-            BlkidError::NulError(ref e) => e.cause(),
-            BlkidError::Error(_) => None,
-            BlkidError::IoError(ref e) => e.cause(),
-            BlkidError::IntoStringError(ref e) => e.cause(),
-        }
-    }
-}
-impl BlkidError {
-    /// Create a new BlkidError with a String message
-    fn new(err: String) -> BlkidError {
-        BlkidError::Error(err)
-    }
-
-    /// Convert a BlkidError into a String representation.
-    pub fn to_string(&self) -> String {
-        match *self {
-            BlkidError::FromUtf8Error(ref err) => err.utf8_error().to_string(),
-            BlkidError::NulError(ref err) => err.description().to_string(),
-            BlkidError::Error(ref err) => err.to_string(),
-            BlkidError::IoError(ref err) => err.description().to_string(),
-            BlkidError::IntoStringError(ref err) => err.description().to_string(),
-        }
-    }
-}
-
-impl From<NulError> for BlkidError {
-    fn from(err: NulError) -> BlkidError {
-        BlkidError::NulError(err)
-    }
-}
-
-impl From<FromUtf8Error> for BlkidError {
-    fn from(err: FromUtf8Error) -> BlkidError {
-        BlkidError::FromUtf8Error(err)
-    }
-}
-impl From<IntoStringError> for BlkidError {
-    fn from(err: IntoStringError) -> BlkidError {
-        BlkidError::IntoStringError(err)
-    }
-}
-impl From<Error> for BlkidError {
-    fn from(err: Error) -> BlkidError {
-        BlkidError::IoError(err)
-    }
-}
-impl From<BlkidError> for Error {
-    fn from(err: BlkidError) -> Error {
-        Error::new(::std::io::ErrorKind::Other, err)
-    }
-}
-
-fn get_error() -> String {
+fn get_error() -> BlkidError {
     let error = errno();
-    format!("{}", error)
+    BlkidError::from(error)
 }
 
 pub struct BlkId {
@@ -115,13 +49,13 @@ pub struct BlkId {
 fn result(val: ::libc::c_int) -> Result<(), BlkidError> {
     match val {
         0 => Ok(()),
-        _ => Err(BlkidError::new(format!("Blkid error {}", val))),
+        _ => Err(BlkidError::Other(format!("Blkid error {}", val))),
     }
 }
 
 fn result_ptr_mut<T>(val: *mut T) -> Result<*mut T, BlkidError> {
     if ptr::eq(ptr::null(), val) {
-        return Err(BlkidError::new("Blkid returned NULL".into()));
+        Err(BlkidError::Other("Blkid returned NULL".into()))
     } else {
         Ok(val)
     }
@@ -146,7 +80,7 @@ impl BlkId {
         unsafe {
             let ret_code = blkid_do_probe(self.probe);
             if ret_code < 0 {
-                return Err(BlkidError::new(get_error()));
+                return Err(get_error());
             }
             Ok(ret_code)
         }
@@ -168,7 +102,7 @@ impl BlkId {
         unsafe {
             let ret_code = blkid_do_safeprobe(self.probe);
             if ret_code == -1 {
-                return Err(BlkidError::new(get_error()));
+                return Err(get_error());
             }
             Ok(ret_code)
         }
@@ -182,7 +116,7 @@ impl BlkId {
             let ret_code =
                 blkid_probe_lookup_value(self.probe, name.as_ptr(), &mut data_ptr, &mut len);
             if ret_code < 0 {
-                return Err(BlkidError::new(get_error()));
+                return Err(get_error());
             }
             let data_value = CStr::from_ptr(data_ptr as *const ::libc::c_char);
             Ok(data_value.to_string_lossy().into_owned())
@@ -194,12 +128,12 @@ impl BlkId {
         unsafe {
             let ret_code = blkid_probe_has_value(self.probe, name.as_ptr());
             if ret_code < 0 {
-                return Err(BlkidError::new(get_error()));
+                return Err(get_error());
             }
             match ret_code {
                 0 => Ok(false),
                 1 => Ok(true),
-                _ => Err(BlkidError::new(format!(
+                _ => Err(BlkidError::Other(format!(
                     "Unknown return code from \
                      blkid_probe_has_value: {}",
                     ret_code
@@ -212,7 +146,7 @@ impl BlkId {
         unsafe {
             let ret_code = blkid_probe_numof_values(self.probe);
             if ret_code < 0 {
-                return Err(BlkidError::new(get_error()));
+                return Err(get_error());
             }
             Ok(ret_code)
         }
@@ -228,7 +162,7 @@ impl BlkId {
             let ret_code =
                 blkid_probe_get_value(self.probe, num, &mut name_ptr, &mut data_ptr, &mut len);
             if ret_code < 0 {
-                return Err(BlkidError::new(get_error()));
+                return Err(get_error());
             }
             let name_value = CStr::from_ptr(name_ptr as *const ::libc::c_char);
             let data_value = CStr::from_ptr(data_ptr as *const ::libc::c_char);
@@ -277,7 +211,7 @@ impl BlkId {
             match ret_code {
                 0 => Ok(false),
                 1 => Ok(true),
-                _ => Err(BlkidError::new(format!(
+                _ => Err(BlkidError::Other(format!(
                     "Unknown return code from \
                      blkid_probe_has_value: {}",
                     ret_code
@@ -289,7 +223,7 @@ impl BlkId {
         unsafe {
             let ret_code = blkid_probe_get_size(self.probe);
             if ret_code < 0 {
-                return Err(BlkidError::new(get_error()));
+                return Err(get_error());
             }
             Ok(ret_code)
         }
@@ -298,7 +232,7 @@ impl BlkId {
         unsafe {
             let ret_code = blkid_probe_get_offset(self.probe);
             if ret_code < 0 {
-                return Err(BlkidError::new(get_error()));
+                return Err(get_error());
             }
             Ok(ret_code)
         }
@@ -310,7 +244,7 @@ impl BlkId {
         unsafe {
             let ret_code = blkid_probe_get_sectors(self.probe);
             if ret_code < 0 {
-                return Err(BlkidError::new(get_error()));
+                return Err(get_error());
             }
             Ok(ret_code)
         }
@@ -325,7 +259,7 @@ impl BlkId {
             match ret_code {
                 0 => Ok(false),
                 1 => Ok(true),
-                _ => Err(BlkidError::new(format!(
+                _ => Err(BlkidError::Other(format!(
                     "Unknown return code from blkid_known_fstype: {}",
                     ret_code
                 ))),
@@ -337,7 +271,7 @@ impl BlkId {
         unsafe {
             let ret_code = blkid_probe_enable_topology(self.probe, 1);
             if ret_code < 0 {
-                return Err(BlkidError::new(get_error()));
+                return Err(get_error());
             }
         }
         Ok(())
@@ -377,7 +311,7 @@ impl BlkId {
         unsafe {
             let ret_code = blkid_probe_enable_partitions(self.probe, 1);
             if ret_code < 0 {
-                return Err(BlkidError::new(get_error()));
+                return Err(get_error());
             }
         }
         Ok(self)
@@ -385,25 +319,25 @@ impl BlkId {
 
     /// Sets probing flags to the partitions prober. This method is optional.
     /// BLKID_PARTS_* flags
-    pub fn set_partition_flags(&self, flags: u32) -> Result<(&Self), BlkidError> {
+    pub fn set_partition_flags(&self, flags: u32) -> Result<&Self, BlkidError> {
         unsafe {
             let ret_code = blkid_probe_set_partitions_flags(self.probe, flags as i32);
             if ret_code < 0 {
-                return Err(BlkidError::new(get_error()));
+                return Err(get_error());
             }
         }
-        Ok(&self)
+        Ok(self)
     }
 
     /// Enables the superblocks probing for non-binary interface.
-    pub fn enable_superblocks(&self) -> Result<(&Self), BlkidError> {
+    pub fn enable_superblocks(&self) -> Result<&Self, BlkidError> {
         unsafe {
             let ret_code = blkid_probe_enable_superblocks(self.probe, 1);
             if ret_code < 0 {
-                return Err(BlkidError::new(get_error()));
+                return Err(get_error());
             }
         }
-        Ok(&self)
+        Ok(self)
     }
 
     /// Sets probing flags to the superblocks prober. This method is optional, the default
@@ -413,10 +347,10 @@ impl BlkId {
         unsafe {
             let ret_code = blkid_probe_set_superblocks_flags(self.probe, flags as i32);
             if ret_code < 0 {
-                return Err(BlkidError::new(get_error()));
+                return Err(get_error());
             }
         }
-        Ok(&self)
+        Ok(self)
     }
 
     // pub fn blkid_probe_get_partitions(pr: blkid_probe) -> blkid_partlist;
