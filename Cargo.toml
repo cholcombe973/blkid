@@ -1,6 +1,6 @@
 [package]
 name = "blkid"
-version = "0.2.1"
+version = "0.3.0"
 description = "Safe blkid-sys wrapper"
 documentation = "https://docs.rs/blkid"
 repository = "https://github.com/cholcombe973/blkid"
