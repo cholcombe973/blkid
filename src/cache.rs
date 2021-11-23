@@ -6,11 +6,10 @@
 
 use std::ptr;
 
-use BlkidError;
-use dev::Devs;
 use blkid_sys::*;
+use dev::Devs;
 use result;
-
+use BlkidError;
 
 #[derive(Debug)]
 pub struct Cache {
@@ -33,7 +32,7 @@ impl Cache {
 }
 
 impl Drop for Cache {
-    fn drop(&mut self) -> () {
+    fn drop(&mut self) {
         unsafe { blkid_put_cache(self.cache) }
     }
 }

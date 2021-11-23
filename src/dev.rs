@@ -4,15 +4,14 @@
 // http://opensource.org/licenses/MIT> This file may not be copied, modified,
 // or distributed except according to those terms.
 
-use std::ptr;
 use std::ffi::{CStr, OsStr};
 use std::os::unix::ffi::OsStrExt;
 use std::path::Path;
+use std::ptr;
 
+use blkid_sys::*;
 use cache::Cache;
 use tag::Tags;
-use blkid_sys::*;
-
 
 pub struct Devs<'a> {
     pub cache: &'a Cache,
@@ -20,7 +19,7 @@ pub struct Devs<'a> {
 }
 
 impl<'a> Drop for Devs<'a> {
-    fn drop(&mut self) -> () {
+    fn drop(&mut self) {
         unsafe { blkid_dev_iterate_end(self.iter) }
     }
 }
@@ -66,7 +65,7 @@ impl Dev {
     }
 
     pub fn verify(&self, cache: &Cache) -> bool {
-        unsafe { blkid_verify(cache.cache, self.dev) != ptr::null_mut() }
+        unsafe { !blkid_verify(cache.cache, self.dev).is_null() }
     }
 
     pub fn tags(&self) -> Tags {
