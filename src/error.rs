@@ -1,57 +1,58 @@
-use errno::errno;
-use std::{
-    ffi::{IntoStringError, NulError},
-    ptr,
-    string::FromUtf8Error,
-};
+// Copyright 2017 Red Hat, Inc.
 
-#[derive(thiserror::Error, Debug)]
-pub enum BlkidError {
-    #[error("blkid error, value is '{val}'")]
-    LibBlkid { val: i32 },
+// Licensed under the MIT license <LICENSE or
+// http://opensource.org/licenses/MIT> This file may not be copied, modified,
+// or distributed except according to those terms.
 
-    #[error("blkid returned NULL")]
-    LibBlkidNull,
+use std::{ffi::NulError, io, str::Utf8Error};
+use thiserror::Error;
 
-    #[error("Unknown return code from `blkid_probe_has_value`: '{ret_code}'")]
-    LibBlkidHasValue { ret_code: i32 },
+pub type BlkIdResult<T, E = BlkIdError> = std::result::Result<T, E>;
 
-    #[error("Unknown return code from `blkid_known_fstype`: '{ret_code}'")]
-    LibBlkidKnownFsType { ret_code: i32 },
-
+#[derive(Error, Debug)]
+pub enum BlkIdError {
     #[error(transparent)]
-    FromUtf8(#[from] FromUtf8Error),
+    Utf8(#[from] Utf8Error),
 
     #[error(transparent)]
     Nul(#[from] NulError),
 
     #[error(transparent)]
-    Io(#[from] std::io::Error),
-
-    #[error(transparent)]
-    IntoString(#[from] IntoStringError),
-
-    #[error(transparent)]
-    Errno(#[from] errno::Errno),
+    Io(#[from] io::Error),
 }
 
-impl BlkidError {
-    pub fn get_error() -> Self {
-        BlkidError::Errno(errno())
-    }
+pub(crate) trait RawResult: Copy {
+    fn is_error(self) -> bool;
 }
 
-pub fn result(val: ::libc::c_int) -> Result<(), BlkidError> {
-    match val {
-        0 => Ok(()),
-        _ => Err(BlkidError::LibBlkid { val }),
-    }
-}
-
-pub fn result_ptr_mut<T>(val: *mut T) -> Result<*mut T, BlkidError> {
-    if ptr::eq(ptr::null(), val) {
-        Err(BlkidError::LibBlkidNull)
+pub(crate) fn c_result<T: RawResult>(value: T) -> BlkIdResult<T> {
+    if value.is_error() {
+        Err(BlkIdError::Io(std::io::Error::last_os_error()))
     } else {
-        Ok(val)
+        Ok(value)
+    }
+}
+
+impl RawResult for i32 {
+    fn is_error(self) -> bool {
+        self < 0
+    }
+}
+
+impl RawResult for i64 {
+    fn is_error(self) -> bool {
+        self < 0
+    }
+}
+
+impl<T> RawResult for *const T {
+    fn is_error(self) -> bool {
+        self.is_null()
+    }
+}
+
+impl<T> RawResult for *mut T {
+    fn is_error(self) -> bool {
+        self.is_null()
     }
 }
