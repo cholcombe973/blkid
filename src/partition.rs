@@ -1,9 +1,3 @@
-// Copyright 2017 Red Hat, Inc.
-
-// Licensed under the MIT license <LICENSE or
-// http://opensource.org/licenses/MIT> This file may not be copied, modified,
-// or distributed except according to those terms.
-
 use crate::{error::c_result, part_table::PartTable, BlkIdResult};
 use blkid_sys::*;
 use std::ffi::CStr;

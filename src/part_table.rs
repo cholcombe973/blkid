@@ -1,9 +1,3 @@
-// Copyright 2017 Red Hat, Inc.
-
-// Licensed under the MIT license <LICENSE or
-// http://opensource.org/licenses/MIT> This file may not be copied, modified,
-// or distributed except according to those terms.
-
 use crate::{error::c_result, partition::Partition, BlkIdResult};
 use blkid_sys::*;
 use std::{ffi::CStr, str::FromStr};
@@ -52,9 +46,9 @@ impl PartTable {
         if ptr.is_null() {
             None
         } else {
-            let part_table_type = unsafe { CStr::from_ptr(ptr).to_string_lossy() };
-            let part_table_type = PartitionTableType::from_str(part_table_type.as_ref())
-                .expect("BUG: strum is broken, it must use default");
+            let pt_type = unsafe { CStr::from_ptr(ptr).to_string_lossy() };
+            let part_table_type = PartitionTableType::from_str(pt_type.as_ref())
+                .unwrap_or_else(|_| PartitionTableType::Unknown(pt_type.to_string()));
             Some(part_table_type)
         }
     }
