@@ -1,6 +1,7 @@
 [package]
 name = "blkid"
 version = "0.3.0"
+edition = "2021"
 description = "Safe blkid-sys wrapper"
 documentation = "https://docs.rs/blkid"
 repository = "https://github.com/cholcombe973/blkid"
@@ -9,7 +10,9 @@ authors = ["Chris Holcombe <xfactor973@gmail.com>"]
 categories = ["api-bindings"]
 
 [dependencies]
+bitflags = "^1.3"
 blkid-sys = "^0.1"
-errno = "^0.2"
 libc = "^0.2"
+strum = "^0.23"
+strum_macros = "^0.23"
 thiserror = "^1.0"
