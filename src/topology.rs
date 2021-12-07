@@ -29,9 +29,9 @@ impl Topology {
         unsafe { blkid_topology_get_physical_sector_size(self.0) }
     }
 
-    // TODO: uncomment this when will be available
-    // /// Returns `true` if dax is supported
-    // pub fn dax(&self) -> bool {
-    //     unsafe { blkid_topogy_get_dax(self.0) == 1 }
-    // }
+    /// Returns `true` if dax is supported
+    #[cfg(blkid = "2.36")]
+    pub fn dax(&self) -> bool {
+        unsafe { blkid_topology_get_dax(self.0) == 1 }
+    }
 }

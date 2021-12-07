@@ -11,6 +11,7 @@ impl PartTable {
     /// Returns partition table ID (for example GPT disk UUID).
     ///
     /// The ID is GPT disk UUID or DOS disk ID (in hex format).
+    #[cfg(blkid = "2.23")]
     pub fn get_id(&self) -> Option<String> {
         let ptr = unsafe { blkid_parttable_get_id(self.0) };
         if ptr.is_null() {

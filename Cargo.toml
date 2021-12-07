@@ -16,3 +16,6 @@ libc = "^0.2"
 strum = "^0.23"
 strum_macros = "^0.23"
 thiserror = "^1.0"
+
+[build-dependencies]
+pkg-config = "^0.3"
