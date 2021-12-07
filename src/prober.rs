@@ -266,13 +266,14 @@ impl Prober {
         unsafe { blkid_probe_get_sectorsize(self.0) }
     }
 
-    // /// Set logical sector size.
-    // ///
-    // /// Note that [`Self::set_device`] resets this setting. Use it after [`Self::set_device`] and
-    // /// before any probing call.
-    // pub fn set_sector_size(&self, size: u32) -> BlkIdResult<()> {
-    //     unsafe { c_result(blkid_probe_set_sectorsize(self.0, size)).map(|_| ()) }
-    // }
+    /// Set logical sector size.
+    ///
+    /// Note that [`Self::set_device`] resets this setting. Use it after [`Self::set_device`] and
+    /// before any probing call.
+    #[cfg(blkid = "2.30")]
+    pub fn set_sector_size(&self, size: u32) -> BlkIdResult<()> {
+        unsafe { c_result(blkid_probe_set_sectorsize(self.0, size)).map(|_| ()) }
+    }
 
     /// 512-byte sector count
     pub fn get_sectors(&self) -> BlkIdResult<i64> {
@@ -300,24 +301,26 @@ impl Prober {
         unsafe { blkid_probe_is_wholedisk(self.0) == 1 }
     }
 
-    // /// Modifies in-memory cached data from the device. The specified range is zeroized.
-    // /// This is usable together with [`Self::step_back`]. The next [`Self::do_probe`] will not see
-    // /// specified area.
-    // ///
-    // /// Note that this is usable for already (by library) read data, and this function is not a way
-    // /// how to hide any large areas on your device.
-    // ///
-    // /// The [`Self::reset_buffers`] reverts all.
-    // pub fn hide_range(&self, offset: u64, size: u64) -> BlkIdResult<()> {
-    //     unsafe { c_result(blkid_probe_hide_range(self.0, offset, size)).map(|_| ()) }
-    // }
+    /// Modifies in-memory cached data from the device. The specified range is zeroized.
+    /// This is usable together with [`Self::step_back`]. The next [`Self::do_probe`] will not see
+    /// specified area.
+    ///
+    /// Note that this is usable for already (by library) read data, and this function is not a way
+    /// how to hide any large areas on your device.
+    ///
+    /// The [`Self::reset_buffers`] reverts all.
+    #[cfg(blkid = "2.31")]
+    pub fn hide_range(&self, offset: u64, size: u64) -> BlkIdResult<()> {
+        unsafe { c_result(blkid_probe_hide_range(self.0, offset, size)).map(|_| ()) }
+    }
 
-    // /// Reuse all already read buffers from the device. The buffers may be modified by
-    // /// [`Self::hide_range`]. This resets and free all cached buffers. The next [`Self::do_probe`]
-    // /// will read all data from the device.
-    // pub fn reset_buffers(&self) -> BlkIdResult<()> {
-    //     unsafe { c_result(blkid_probe_reset_buffers(self.0)).map(|_| ()) }
-    // }
+    /// Reuse all already read buffers from the device. The buffers may be modified by
+    /// [`Self::hide_range`]. This resets and free all cached buffers. The next [`Self::do_probe`]
+    /// will read all data from the device.
+    #[cfg(blkid = "2.31")]
+    pub fn reset_buffers(&self) -> BlkIdResult<()> {
+        unsafe { c_result(blkid_probe_reset_buffers(self.0)).map(|_| ()) }
+    }
 
     /// This function move pointer to the probing chain one step back - it means that the
     /// previously used probing function will be called again in the next [`Self::do_probe`] call.
@@ -334,6 +337,7 @@ impl Prober {
     /// let prober = Prober::new_from_filename("/dev/sda");
     /// TODO: coplete this example
     /// ```
+    #[cfg(blkid = "2.23")]
     pub fn step_back(&self) -> BlkIdResult<()> {
         unsafe { c_result(blkid_probe_step_back(self.0)).map(|_| ()) }
     }
@@ -420,13 +424,14 @@ impl Prober {
         Ok(unsafe { blkid_known_pttype(pttype.as_ptr()) == 1 })
     }
 
-    // /// Returns name of a supported partition.
-    // pub fn partitions_get_name(idx: u64) -> BlkIdResult<String> {
-    //     let mut name: *const ::libc::c_char = ptr::null();
-    //     unsafe { c_result(blkid_partitions_get_name(idx, &mut name)) }?;
-    //     let name = unsafe { CStr::from_ptr(name).to_str()?.to_owned() };
-    //     Ok(name)
-    // }
+    /// Returns name of a supported partition.
+    #[cfg(blkid = "2.30")]
+    pub fn partitions_get_name(idx: u64) -> BlkIdResult<String> {
+        let mut name: *const ::libc::c_char = ptr::null();
+        unsafe { c_result(blkid_partitions_get_name(idx, &mut name)) }?;
+        let name = unsafe { CStr::from_ptr(name).to_str()?.to_owned() };
+        Ok(name)
+    }
 
     /// Returns [`PartList`] object.
     ///
@@ -463,20 +468,20 @@ impl Prober {
         unsafe { c_result(blkid_probe_get_topology(self.0)).map(Topology) }
     }
 
-    // TODO: uncomments this when it will be possible
-    // Sets extra hint for low-level prober. If the hint is set by NAME=value notation than value
-    // is ignored. The [`Self::set_device`] and [`Self::reset_probe`] resets all hints.
-    //
-    // The hints are optional way how to force libblkid probing functions to check for example
-    // another location.
-    // pub fn set_hint(&self, hint_name: &str, offset: u64) -> BlkIdResult<()> {
-    //     let name = CString::new(hint_name)?;
-    //     unsafe { c_result(blkid_probe_set_hint(self.0, name.as_ptr(), offset)).map(|_| ()) }
-    // }
+    /// Sets extra hint for low-level prober. If the hint is set by NAME=value notation than value
+    /// is ignored. The [`Self::set_device`] and [`Self::reset_probe`] resets all hints.
+    ///
+    /// The hints are optional way how to force libblkid probing functions to check for example
+    /// another location.
+    #[cfg(blkid = "2.37")]
+    pub fn set_hint(&self, hint_name: &str, offset: u64) -> BlkIdResult<()> {
+        let name = CString::new(hint_name)?;
+        unsafe { c_result(blkid_probe_set_hint(self.0, name.as_ptr(), offset)).map(|_| ()) }
+    }
 
-    // TODO: uncomments this when it will be possible
-    // Removes all previously defined probing hints. See also [`Self::set_hint`]
-    // pub fn reset_hints(&self) -> BlkIdResult<()> {
-    //    unsafe { c_result(blkid_probe_reset_hints(self.0)).map(|_| ()) }
-    // }
+    /// Removes all previously defined probing hints. See also [`Self::set_hint`]
+    #[cfg(blkid = "2.37")]
+    pub fn reset_hints(&self) {
+        unsafe { blkid_probe_reset_hints(self.0) }
+    }
 }

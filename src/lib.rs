@@ -41,6 +41,7 @@ bitflags! {
         /// Define SBMAGIC and SBMAGIC_OFFSET
         const MAGIC     = 1 << 9;
         /// Allow a bad checksum
+        #[cfg(blkid = "2.24")]
         const BADCSUM   = 1 << 10;
         /// Default flags
         const DEFAULT   = Self::LABEL.bits | Self::UUID.bits | Self::TYPE.bits | Self::SECTYPE.bits;

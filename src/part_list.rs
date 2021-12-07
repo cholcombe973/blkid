@@ -20,6 +20,7 @@ impl PartList {
     ///
     /// This does not assume any order of the input blkid_partlist. And correctly handles "out of
     /// order" partition tables. partition N is located after partition N+1 on the disk.
+    #[cfg(blkid = "2.25")]
     pub fn get_partition_by_parno(&self, partno: i32) -> BlkIdResult<Partition> {
         unsafe { c_result(blkid_partlist_get_partition_by_partno(self.0, partno)).map(Partition) }
     }
