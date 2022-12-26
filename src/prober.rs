@@ -426,9 +426,9 @@ impl Prober {
 
     /// Returns name of a supported partition.
     #[cfg(blkid = "2.30")]
-    pub fn partitions_get_name(idx: u64) -> BlkIdResult<String> {
+    pub fn partitions_get_name(idx: usize) -> BlkIdResult<String> {
         let mut name: *const ::libc::c_char = ptr::null();
-        unsafe { c_result(blkid_partitions_get_name(idx, &mut name)) }?;
+        unsafe { c_result(blkid_partitions_get_name(idx.try_into().unwrap(), &mut name)) }?;
         let name = unsafe { CStr::from_ptr(name).to_str()?.to_owned() };
         Ok(name)
     }
