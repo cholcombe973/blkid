@@ -16,7 +16,7 @@ jobs:
 
     steps:
     - uses: actions/checkout@v3
-    - install packages:
+    - name: install packages
       run: sudo apt install -y libblkid-dev
     - name: Build
       run: cargo build --verbose
