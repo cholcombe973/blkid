@@ -72,6 +72,7 @@ impl Tag {
 /// Each of inner enum value implement `From` trait, which allows to construct this enum using the
 /// following syntax:
 /// ```rust,text
+/// use blkid::{tag::TagType, tag::PartitionTag};
 /// let part_tag = PartitionTag::Ptuuid;
 /// let tag_type: TagType = part_tag.into();
 /// let tag_part_type = TagType::Partition(PartitionTag::Ptuuid);
