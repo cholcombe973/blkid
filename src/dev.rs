@@ -1,4 +1,4 @@
-use crate::{cache::Cache, error::c_result, tag::Tags, BlkIdResult};
+use crate::{cache::Cache, error::{c_result, BlkIdError}, tag::Tags, BlkIdResult};
 use bitflags::bitflags;
 use blkid_sys::*;
 use std::{
@@ -37,13 +37,18 @@ impl<'a> Iterator for Devs<'a> {
 
 impl<'a> Devs<'a> {
     /// Creates wrapper around device
-    pub fn new(cache: &'a Cache) -> Devs<'a> {
+    pub fn new(cache: &'a Cache) -> BlkIdResult<Devs<'a>> {
         let iter = unsafe { blkid_dev_iterate_begin(cache.0) };
-        assert_ne!(iter, ptr::null_mut());
-        Devs {
+        if iter.is_null() {
+            return Err(BlkIdError::FfiError {
+                func: "blkid_dev_iterate_begin",
+                errno: std::io::Error::last_os_error(),
+            });
+        }
+        Ok(Devs {
             iter,
             _marker: PhantomData,
-        }
+        })
     }
 
     /// Set search filter for the device iterator. Only devices matching the

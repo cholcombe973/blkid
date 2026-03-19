@@ -64,7 +64,7 @@ impl Cache {
     }
 
     /// Returns iterator over all devices are found by probe
-    pub fn devs(&self) -> Devs<'_> {
+    pub fn devs(&self) -> BlkIdResult<Devs<'_>> {
         Devs::new(self)
     }
 

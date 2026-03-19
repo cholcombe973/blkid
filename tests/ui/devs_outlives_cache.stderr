@@ -6,7 +6,7 @@ error[E0597]: `cache` does not live long enough
  8 |         let cache = Cache::new().unwrap();
    |             ----- binding `cache` declared here
  9 |         cache.probe_all().unwrap();
-10 |         cache.devs()
+10 |         cache.devs().unwrap()
    |         ^^^^^ borrowed value does not live long enough
 11 |     };
    |     - `cache` dropped here while still borrowed
