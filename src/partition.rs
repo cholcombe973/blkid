@@ -29,7 +29,7 @@ impl<'a> Partition<'a> {
     /// Returns proposed partition number (e.g. 'N' from sda'N'). Note that the number is generated
     /// by independently of your OS library.
     pub fn partno(&self) -> BlkIdResult<i32> {
-        unsafe { c_result(blkid_partition_get_partno(self.0)) }
+        unsafe { c_result(blkid_partition_get_partno(self.0), "blkid_partition_get_partno") }
     }
 
     /// Returns size of the partition (in 512-sectors).
@@ -45,7 +45,7 @@ impl<'a> Partition<'a> {
     /// For some unknown reason this (safe) practice is not to used for nested BSD, Solaris, ...,
     /// partition tables in Linux kernel.
     pub fn size(&self) -> BlkIdResult<i64> {
-        unsafe { c_result(blkid_partition_get_size(self.0)) }
+        unsafe { c_result(blkid_partition_get_size(self.0), "blkid_partition_get_size") }
     }
 
     /// Returns start of the partition (in 512-sectors).
@@ -62,7 +62,7 @@ impl<'a> Partition<'a> {
     /// You don't have to care about such details if you probe whole disk. In such a case libblkid
     /// always returns the offset relative to the begin of the disk.
     pub fn start(&self) -> BlkIdResult<i64> {
-        unsafe { c_result(blkid_partition_get_start(self.0)) }
+        unsafe { c_result(blkid_partition_get_start(self.0), "blkid_partition_get_start") }
     }
 
     /// Returns partition table object.
@@ -85,7 +85,7 @@ impl<'a> Partition<'a> {
     /// (partitions within extended partition). It's possible to differentiate between logical,
     /// extended and primary partitions by `Self::is_{extended, primary, logical}`.
     pub fn table(&self) -> BlkIdResult<PartTable<'a>> {
-        unsafe { c_result(blkid_partition_get_table(self.0)).map(PartTable::new) }
+        unsafe { c_result(blkid_partition_get_table(self.0), "blkid_partition_get_table").map(PartTable::new) }
     }
 
     /// Returns partition type

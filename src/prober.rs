@@ -50,7 +50,7 @@ impl Drop for Prober {
 impl Prober {
     /// Create newly allocated `probe` struct.
     pub fn new() -> BlkIdResult<Self> {
-        let probe = unsafe { c_result(blkid_new_probe()) }?;
+        let probe = unsafe { c_result(blkid_new_probe(), "blkid_new_probe") }?;
         Ok(Self(probe))
     }
 
@@ -58,7 +58,7 @@ impl Prober {
     /// `filename` can be either regular file or device
     pub fn new_from_filename<P: AsRef<Path>>(filename: P) -> BlkIdResult<Self> {
         let path = path_to_cstring(filename)?;
-        let probe = unsafe { c_result(blkid_new_probe_from_filename(path.as_ptr())) }?;
+        let probe = unsafe { c_result(blkid_new_probe_from_filename(path.as_ptr()), "blkid_new_probe_from_filename") }?;
         Ok(Self(probe))
     }
 
@@ -100,7 +100,10 @@ impl Prober {
         match ret_code {
             0 => Ok(ProbeState::Success),
             1 => Ok(ProbeState::Done),
-            _ => Err(BlkIdError::Io(std::io::Error::last_os_error())),
+            _ => Err(BlkIdError::FfiError {
+                func: "blkid_do_probe",
+                errno: std::io::Error::last_os_error(),
+            }),
         }
     }
 
@@ -128,7 +131,10 @@ impl Prober {
             0 => Ok(ProbeState::Success),
             1 => Ok(ProbeState::NothingDetected),
             -2 => Ok(ProbeState::Ambivalent),
-            _ => Err(BlkIdError::Io(std::io::Error::last_os_error())),
+            _ => Err(BlkIdError::FfiError {
+                func: "blkid_do_safeprobe",
+                errno: std::io::Error::last_os_error(),
+            }),
         }
     }
 
@@ -144,7 +150,10 @@ impl Prober {
         match ret_code {
             0 => Ok(ProbeState::Success),
             1 => Ok(ProbeState::NothingDetected),
-            _ => Err(BlkIdError::Io(std::io::Error::last_os_error())),
+            _ => Err(BlkIdError::FfiError {
+                func: "blkid_do_fullprobe",
+                errno: std::io::Error::last_os_error(),
+            }),
         }
     }
 
@@ -180,7 +189,10 @@ impl Prober {
         match ret_code {
             0 => Ok(ProbeState::Success),
             1 => Ok(ProbeState::Done),
-            _ => Err(BlkIdError::Io(std::io::Error::last_os_error())),
+            _ => Err(BlkIdError::FfiError {
+                func: "blkid_do_wipe",
+                errno: std::io::Error::last_os_error(),
+            }),
         }
     }
 
@@ -197,7 +209,7 @@ impl Prober {
                 &mut name_ptr,
                 &mut data_ptr,
                 &mut len,
-            ))
+            ), "blkid_probe_get_value")
         }?;
 
         let name_value = unsafe { CStr::from_ptr(name_ptr).to_str()?.to_owned() };
@@ -221,7 +233,7 @@ impl Prober {
     /// Check if device has the specified value
     pub fn has_value(&self, name: &str) -> BlkIdResult<bool> {
         let name = CString::new(name)?;
-        unsafe { c_result(blkid_probe_has_value(self.0, name.as_ptr())).map(|val| val == 1) }
+        unsafe { c_result(blkid_probe_has_value(self.0, name.as_ptr()), "blkid_probe_has_value").map(|val| val == 1) }
     }
 
     /// Value by specified `name`
@@ -239,7 +251,7 @@ impl Prober {
                 name.as_ptr(),
                 &mut data_ptr,
                 &mut len,
-            ))
+            ), "blkid_probe_lookup_value")
         }?;
 
         let data_value = unsafe { CStr::from_ptr(data_ptr).to_str()?.to_owned() };
@@ -248,11 +260,11 @@ impl Prober {
 
     /// Number of values in probing result
     pub fn numof_values(&self) -> BlkIdResult<i32> {
-        unsafe { c_result(blkid_probe_numof_values(self.0)) }
+        unsafe { c_result(blkid_probe_numof_values(self.0), "blkid_probe_numof_values") }
     }
 
     /// Block device number, or 0 for regular file
-    pub fn get_devno(&self) -> u64 {
+    pub fn get_devno(&self) -> libc::dev_t {
         unsafe { blkid_probe_get_devno(self.0) }
     }
 
@@ -272,27 +284,27 @@ impl Prober {
     /// before any probing call.
     #[cfg(blkid = "2.30")]
     pub fn set_sector_size(&self, size: u32) -> BlkIdResult<()> {
-        unsafe { c_result(blkid_probe_set_sectorsize(self.0, size)).map(|_| ()) }
+        unsafe { c_result(blkid_probe_set_sectorsize(self.0, size), "blkid_probe_set_sectorsize").map(|_| ()) }
     }
 
     /// 512-byte sector count
     pub fn get_sectors(&self) -> BlkIdResult<i64> {
-        unsafe { c_result(blkid_probe_get_sectors(self.0)) }
+        unsafe { c_result(blkid_probe_get_sectors(self.0), "blkid_probe_get_sectors") }
     }
 
     /// Size of probing area in bytes as defined by [`Self::set_device`]. If the size of the probing
     /// area is unrestricted then this function returns the real size of device
     pub fn get_size(&self) -> BlkIdResult<i64> {
-        unsafe { c_result(blkid_probe_get_size(self.0)) }
+        unsafe { c_result(blkid_probe_get_size(self.0), "blkid_probe_get_size") }
     }
 
     /// Offset of probing area as defined by [`Self::set_device`]
     pub fn get_offset(&self) -> BlkIdResult<i64> {
-        unsafe { c_result(blkid_probe_get_offset(self.0)) }
+        unsafe { c_result(blkid_probe_get_offset(self.0), "blkid_probe_get_offset") }
     }
 
     /// Device number of the wholedisk, or 0 for regular files
-    pub fn get_wholedisk_devno(&self) -> u64 {
+    pub fn get_wholedisk_devno(&self) -> libc::dev_t {
         unsafe { blkid_probe_get_wholedisk_devno(self.0) }
     }
 
@@ -311,7 +323,7 @@ impl Prober {
     /// The [`Self::reset_buffers`] reverts all.
     #[cfg(blkid = "2.31")]
     pub fn hide_range(&self, offset: u64, size: u64) -> BlkIdResult<()> {
-        unsafe { c_result(blkid_probe_hide_range(self.0, offset, size)).map(|_| ()) }
+        unsafe { c_result(blkid_probe_hide_range(self.0, offset, size), "blkid_probe_hide_range").map(|_| ()) }
     }
 
     /// Reuse all already read buffers from the device. The buffers may be modified by
@@ -319,7 +331,7 @@ impl Prober {
     /// will read all data from the device.
     #[cfg(blkid = "2.31")]
     pub fn reset_buffers(&self) -> BlkIdResult<()> {
-        unsafe { c_result(blkid_probe_reset_buffers(self.0)).map(|_| ()) }
+        unsafe { c_result(blkid_probe_reset_buffers(self.0), "blkid_probe_reset_buffers").map(|_| ()) }
     }
 
     /// This function move pointer to the probing chain one step back - it means that the
@@ -339,7 +351,7 @@ impl Prober {
     /// ```
     #[cfg(blkid = "2.23")]
     pub fn step_back(&self) -> BlkIdResult<()> {
-        unsafe { c_result(blkid_probe_step_back(self.0)).map(|_| ()) }
+        unsafe { c_result(blkid_probe_step_back(self.0), "blkid_probe_step_back").map(|_| ()) }
     }
 
     /// Assigns the device to probe control struct, resets internal buffers and resets the current
@@ -350,7 +362,7 @@ impl Prober {
     /// `size`: size of probing area (`None` means whole device/file)
     pub fn set_device(&mut self, fd: i32, offset: i64, size: Option<i64>) -> BlkIdResult<()> {
         let size = size.unwrap_or(0);
-        unsafe { c_result(blkid_probe_set_device(self.0, fd, offset, size)).map(|_| ()) }
+        unsafe { c_result(blkid_probe_set_device(self.0, fd, offset, size), "blkid_probe_set_device").map(|_| ()) }
     }
 
     /// Zeroize probing results and resets the current probing (this has impact to [`Self::do_probe`]
@@ -361,7 +373,7 @@ impl Prober {
 
     /// Enables/disables the superblocks probing for non-binary interface.
     pub fn enable_superblocks(&self, enable: bool) -> BlkIdResult<()> {
-        unsafe { c_result(blkid_probe_enable_superblocks(self.0, enable as i32)).map(|_| ()) }
+        unsafe { c_result(blkid_probe_enable_superblocks(self.0, enable as i32), "blkid_probe_enable_superblocks").map(|_| ()) }
     }
 
     /// If known filesystem type
@@ -374,7 +386,7 @@ impl Prober {
     pub fn superblocks_get_name(idx: usize) -> BlkIdResult<(String, i32)> {
         let mut name: *const ::libc::c_char = ptr::null();
         let mut usage: i32 = 0;
-        unsafe { c_result(blkid_superblocks_get_name(idx, &mut name, &mut usage)) }?;
+        unsafe { c_result(blkid_superblocks_get_name(idx, &mut name, &mut usage), "blkid_superblocks_get_name") }?;
         let name = unsafe { CStr::from_ptr(name).to_str()?.to_owned() };
         Ok((name, usage))
     }
@@ -385,16 +397,22 @@ impl Prober {
         mode: FilterMode,
         names: &[&str],
     ) -> BlkIdResult<()> {
-        let c_names: Vec<CString> = names.iter().map(|n| CString::new(*n).unwrap()).collect();
+        let c_names: Vec<CString> = names
+            .iter()
+            .map(|n| CString::new(*n))
+            .collect::<Result<Vec<_>, _>>()?;
         let mut ptrs: Vec<*mut ::libc::c_char> =
             c_names.iter().map(|c| c.as_ptr() as *mut _).collect();
         ptrs.push(ptr::null_mut());
         unsafe {
-            c_result(blkid_probe_filter_superblocks_type(
-                self.0,
-                mode as i32,
-                ptrs.as_mut_ptr(),
-            ))
+            c_result(
+                blkid_probe_filter_superblocks_type(
+                    self.0,
+                    mode as i32,
+                    ptrs.as_mut_ptr(),
+                ),
+                "blkid_probe_filter_superblocks_type",
+            )
             .map(|_| ())
         }
     }
@@ -410,35 +428,35 @@ impl Prober {
                 self.0,
                 mode as i32,
                 usage.bits(),
-            ))
+            ), "blkid_probe_filter_superblocks_usage")
             .map(|_| ())
         }
     }
 
     /// Inverts superblocks probing filter
     pub fn invert_superblocks_filter(&self) -> BlkIdResult<()> {
-        unsafe { c_result(blkid_probe_invert_superblocks_filter(self.0)).map(|_| ()) }
+        unsafe { c_result(blkid_probe_invert_superblocks_filter(self.0), "blkid_probe_invert_superblocks_filter").map(|_| ()) }
     }
 
     /// Resets superblocks probing filter
     pub fn reset_superblocks_filter(&self) -> BlkIdResult<()> {
-        unsafe { c_result(blkid_probe_reset_superblocks_filter(self.0)).map(|_| ()) }
+        unsafe { c_result(blkid_probe_reset_superblocks_filter(self.0), "blkid_probe_reset_superblocks_filter").map(|_| ()) }
     }
 
     /// Sets probing flags to the superblocks prober. This function is optional, the default are
     /// [`Superblocks::DEFAULT`] flags.
     pub fn set_superblocks_flags(&self, flags: SuperblocksFlags) -> BlkIdResult<()> {
-        unsafe { c_result(blkid_probe_set_superblocks_flags(self.0, flags.bits())).map(|_| ()) }
+        unsafe { c_result(blkid_probe_set_superblocks_flags(self.0, flags.bits()), "blkid_probe_set_superblocks_flags").map(|_| ()) }
     }
 
     /// Enables/disables the partitions probing for non-binary interface
     pub fn enable_partitions(&self, enable: bool) -> BlkIdResult<()> {
-        unsafe { c_result(blkid_probe_enable_partitions(self.0, enable as i32)).map(|_| ()) }
+        unsafe { c_result(blkid_probe_enable_partitions(self.0, enable as i32), "blkid_probe_enable_partitions").map(|_| ()) }
     }
 
     /// Sets probing flags to the partitions prober. This function is optional
     pub fn set_partitions_flags(&self, flags: PartitionsFlags) -> BlkIdResult<()> {
-        unsafe { c_result(blkid_probe_set_partitions_flags(self.0, flags.bits())).map(|_| ()) }
+        unsafe { c_result(blkid_probe_set_partitions_flags(self.0, flags.bits()), "blkid_probe_set_partitions_flags").map(|_| ()) }
     }
 
     /// Filter partitions probing by partition type name.
@@ -447,28 +465,34 @@ impl Prober {
         mode: FilterMode,
         names: &[&str],
     ) -> BlkIdResult<()> {
-        let c_names: Vec<CString> = names.iter().map(|n| CString::new(*n).unwrap()).collect();
+        let c_names: Vec<CString> = names
+            .iter()
+            .map(|n| CString::new(*n))
+            .collect::<Result<Vec<_>, _>>()?;
         let mut ptrs: Vec<*mut ::libc::c_char> =
             c_names.iter().map(|c| c.as_ptr() as *mut _).collect();
         ptrs.push(ptr::null_mut());
         unsafe {
-            c_result(blkid_probe_filter_partitions_type(
-                self.0,
-                mode as i32,
-                ptrs.as_mut_ptr(),
-            ))
+            c_result(
+                blkid_probe_filter_partitions_type(
+                    self.0,
+                    mode as i32,
+                    ptrs.as_mut_ptr(),
+                ),
+                "blkid_probe_filter_partitions_type",
+            )
             .map(|_| ())
         }
     }
 
     /// Inverts partitions probing filter
     pub fn invert_partitions_filter(&self) -> BlkIdResult<()> {
-        unsafe { c_result(blkid_probe_invert_partitions_filter(self.0)).map(|_| ()) }
+        unsafe { c_result(blkid_probe_invert_partitions_filter(self.0), "blkid_probe_invert_partitions_filter").map(|_| ()) }
     }
 
     /// Resets partitions probing filter
     pub fn reset_partitions_filter(&self) -> BlkIdResult<()> {
-        unsafe { c_result(blkid_probe_reset_partitions_filter(self.0)).map(|_| ()) }
+        unsafe { c_result(blkid_probe_reset_partitions_filter(self.0), "blkid_probe_reset_partitions_filter").map(|_| ()) }
     }
 
     /// If known partition table type
@@ -481,7 +505,7 @@ impl Prober {
     #[cfg(blkid = "2.30")]
     pub fn partitions_get_name(idx: usize) -> BlkIdResult<String> {
         let mut name: *const ::libc::c_char = ptr::null();
-        unsafe { c_result(blkid_partitions_get_name(idx.try_into().unwrap(), &mut name)) }?;
+        unsafe { c_result(blkid_partitions_get_name(idx.try_into().unwrap(), &mut name), "blkid_partitions_get_name") }?;
         let name = unsafe { CStr::from_ptr(name).to_str()?.to_owned() };
         Ok(name)
     }
@@ -498,12 +522,12 @@ impl Prober {
     /// prober. If you want to use more [`PartList`] objects in the same time you have to create
     /// more [`Prober`] handlers.
     pub fn part_list(&self) -> BlkIdResult<PartList<'_>> {
-        unsafe { c_result(blkid_probe_get_partitions(self.0)).map(PartList::new) }
+        unsafe { c_result(blkid_probe_get_partitions(self.0), "blkid_probe_get_partitions").map(PartList::new) }
     }
 
     /// Enables/disables the topology probing for non-binary interface
     pub fn enable_topology(&self, enable: bool) -> BlkIdResult<()> {
-        unsafe { c_result(blkid_probe_enable_topology(self.0, enable as i32)).map(|_| ()) }
+        unsafe { c_result(blkid_probe_enable_topology(self.0, enable as i32), "blkid_probe_enable_topology").map(|_| ()) }
     }
 
     /// Returns topology.
@@ -518,7 +542,7 @@ impl Prober {
     /// prober. If you want to use more [`Topology`] objects in the same time you have to create
     /// more [`Prober`] handlers.
     pub fn topology(&self) -> BlkIdResult<Topology<'_>> {
-        unsafe { c_result(blkid_probe_get_topology(self.0)).map(Topology::new) }
+        unsafe { c_result(blkid_probe_get_topology(self.0), "blkid_probe_get_topology").map(Topology::new) }
     }
 
     /// Sets extra hint for low-level prober. If the hint is set by NAME=value notation than value
@@ -529,7 +553,7 @@ impl Prober {
     #[cfg(blkid = "2.37")]
     pub fn set_hint(&self, hint_name: &str, offset: u64) -> BlkIdResult<()> {
         let name = CString::new(hint_name)?;
-        unsafe { c_result(blkid_probe_set_hint(self.0, name.as_ptr(), offset)).map(|_| ()) }
+        unsafe { c_result(blkid_probe_set_hint(self.0, name.as_ptr(), offset), "blkid_probe_set_hint").map(|_| ()) }
     }
 
     /// Removes all previously defined probing hints. See also [`Self::set_hint`]

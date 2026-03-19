@@ -52,7 +52,7 @@ impl<'a> Devs<'a> {
         let s_type = CString::new(search_type)?;
         let s_value = CString::new(search_value)?;
         unsafe {
-            c_result(blkid_dev_set_search(self.iter, s_type.as_ptr(), s_value.as_ptr()))
+            c_result(blkid_dev_set_search(self.iter, s_type.as_ptr(), s_value.as_ptr()), "blkid_dev_set_search")
                 .map(|_| ())
         }
     }

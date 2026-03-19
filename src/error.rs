@@ -13,15 +13,21 @@ pub enum BlkIdError {
 
     #[error(transparent)]
     Io(#[from] io::Error),
+
+    #[error("{func}: {errno}")]
+    FfiError { func: &'static str, errno: io::Error },
 }
 
 pub(crate) trait RawResult: Copy {
     fn is_error(self) -> bool;
 }
 
-pub(crate) fn c_result<T: RawResult>(value: T) -> BlkIdResult<T> {
+pub(crate) fn c_result<T: RawResult>(value: T, func: &'static str) -> BlkIdResult<T> {
     if value.is_error() {
-        Err(BlkIdError::Io(std::io::Error::last_os_error()))
+        Err(BlkIdError::FfiError {
+            func,
+            errno: io::Error::last_os_error(),
+        })
     } else {
         Ok(value)
     }
