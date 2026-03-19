@@ -3,7 +3,7 @@ use crate::{
     part_list::PartList,
     path_to_cstring,
     topology::Topology,
-    PartitionsFlags, SuperblocksFlags,
+    FilterMode, PartitionsFlags, SuperblocksFlags, SuperblocksUsage,
 };
 use blkid_sys::*;
 use std::{
@@ -139,7 +139,7 @@ impl Prober {
     /// * [`ProberState::Success`]
     /// * [`ProberState::NothingDetected`]
     pub fn do_full_probe(&self) -> BlkIdResult<ProbeState> {
-        let ret_code = unsafe { blkid_do_safeprobe(self.0) };
+        let ret_code = unsafe { blkid_do_fullprobe(self.0) };
 
         match ret_code {
             0 => Ok(ProbeState::Success),
@@ -370,14 +370,50 @@ impl Prober {
         Ok(unsafe { blkid_known_fstype(fstype.as_ptr()) == 1 })
     }
 
-    // TODO: implement
-    // pub fn superblocks_get_name() {}
+    /// Returns name and usage flags of a supported superblock (filesystem/raid).
+    pub fn superblocks_get_name(idx: usize) -> BlkIdResult<(String, i32)> {
+        let mut name: *const ::libc::c_char = ptr::null();
+        let mut usage: i32 = 0;
+        unsafe { c_result(blkid_superblocks_get_name(idx, &mut name, &mut usage)) }?;
+        let name = unsafe { CStr::from_ptr(name).to_str()?.to_owned() };
+        Ok((name, usage))
+    }
 
-    // TODO: implement
-    // pub fn filter_superblocks_type() {}
+    /// Filter superblocks probing by filesystem type name.
+    pub fn filter_superblocks_type(
+        &self,
+        mode: FilterMode,
+        names: &[&str],
+    ) -> BlkIdResult<()> {
+        let c_names: Vec<CString> = names.iter().map(|n| CString::new(*n).unwrap()).collect();
+        let mut ptrs: Vec<*mut ::libc::c_char> =
+            c_names.iter().map(|c| c.as_ptr() as *mut _).collect();
+        ptrs.push(ptr::null_mut());
+        unsafe {
+            c_result(blkid_probe_filter_superblocks_type(
+                self.0,
+                mode as i32,
+                ptrs.as_mut_ptr(),
+            ))
+            .map(|_| ())
+        }
+    }
 
-    // TODO: implement
-    // pub fn filter_superblocks_usage() {}
+    /// Filter superblocks probing by usage flags.
+    pub fn filter_superblocks_usage(
+        &self,
+        mode: FilterMode,
+        usage: SuperblocksUsage,
+    ) -> BlkIdResult<()> {
+        unsafe {
+            c_result(blkid_probe_filter_superblocks_usage(
+                self.0,
+                mode as i32,
+                usage.bits(),
+            ))
+            .map(|_| ())
+        }
+    }
 
     /// Inverts superblocks probing filter
     pub fn invert_superblocks_filter(&self) -> BlkIdResult<()> {
@@ -405,8 +441,25 @@ impl Prober {
         unsafe { c_result(blkid_probe_set_partitions_flags(self.0, flags.bits())).map(|_| ()) }
     }
 
-    // TODO: implement
-    // pub fn filter_partitions_type() {}
+    /// Filter partitions probing by partition type name.
+    pub fn filter_partitions_type(
+        &self,
+        mode: FilterMode,
+        names: &[&str],
+    ) -> BlkIdResult<()> {
+        let c_names: Vec<CString> = names.iter().map(|n| CString::new(*n).unwrap()).collect();
+        let mut ptrs: Vec<*mut ::libc::c_char> =
+            c_names.iter().map(|c| c.as_ptr() as *mut _).collect();
+        ptrs.push(ptr::null_mut());
+        unsafe {
+            c_result(blkid_probe_filter_partitions_type(
+                self.0,
+                mode as i32,
+                ptrs.as_mut_ptr(),
+            ))
+            .map(|_| ())
+        }
+    }
 
     /// Inverts partitions probing filter
     pub fn invert_partitions_filter(&self) -> BlkIdResult<()> {

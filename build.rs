@@ -1,7 +1,7 @@
 const LIB_NAME: &str = "blkid";
 const BLKID_MIN_REQ_VERSION: &str = "2.21.0";
 /// MIN numbers of versions where were added new functionality
-const BLKID_CHANGED_MIN_VERSIONS: &[usize] = &[23, 24, 25, 30, 31, 36, 37];
+const BLKID_CHANGED_MIN_VERSIONS: &[usize] = &[23, 24, 25, 30, 31, 36, 37, 39];
 
 fn main() {
     // Declare expected cfg values so rustc doesn't warn about unexpected cfgs.

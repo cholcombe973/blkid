@@ -41,4 +41,10 @@ impl<'a> Topology<'a> {
     pub fn dax(&self) -> bool {
         unsafe { blkid_topology_get_dax(self.0) == 1 }
     }
+
+    /// Disk sequence number or 0.
+    #[cfg(blkid = "2.39")]
+    pub fn diskseq(&self) -> u64 {
+        unsafe { blkid_topology_get_diskseq(self.0) }
+    }
 }

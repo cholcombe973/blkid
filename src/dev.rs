@@ -1,8 +1,8 @@
-use crate::{cache::Cache, tag::Tags};
+use crate::{cache::Cache, error::c_result, tag::Tags, BlkIdResult};
 use bitflags::bitflags;
 use blkid_sys::*;
 use std::{
-    ffi::{CStr, OsStr},
+    ffi::{CStr, CString, OsStr},
     marker::PhantomData,
     os::unix::ffi::OsStrExt,
     path::Path,
@@ -45,6 +45,17 @@ impl<'a> Devs<'a> {
             _marker: PhantomData,
         }
     }
+
+    /// Set search filter for the device iterator. Only devices matching the
+    /// given `search_type` and `search_value` will be returned.
+    pub fn set_search(&mut self, search_type: &str, search_value: &str) -> BlkIdResult<()> {
+        let s_type = CString::new(search_type)?;
+        let s_value = CString::new(search_value)?;
+        unsafe {
+            c_result(blkid_dev_set_search(self.iter, s_type.as_ptr(), s_value.as_ptr()))
+                .map(|_| ())
+        }
+    }
 }
 
 /// The device object keeps information about one device
@@ -79,6 +90,17 @@ impl<'a> Dev<'a> {
     /// Returns device's tags
     pub fn tags(&self) -> Tags {
         Tags::new(self)
+    }
+
+    /// Returns `true` if the device has the specified tag type and value.
+    pub fn has_tag(&self, tag_type: &str, value: &str) -> bool {
+        let Ok(tag_type) = CString::new(tag_type) else {
+            return false;
+        };
+        let Ok(value) = CString::new(value) else {
+            return false;
+        };
+        unsafe { blkid_dev_has_tag(self.0, tag_type.as_ptr(), value.as_ptr()) != 0 }
     }
 }
 

@@ -11,6 +11,7 @@ use std::{
     path::Path,
     ptr,
 };
+extern crate libc;
 
 #[derive(Debug)]
 pub struct Cache(pub(crate) blkid_cache);
@@ -111,5 +112,52 @@ impl Cache {
     /// Removes garbage (non-existing devices) from the cache
     pub fn gc(&self) {
         unsafe { blkid_gc_cache(self.0) }
+    }
+
+    /// Look up a device by tag (e.g. token="LABEL", value="root") and return
+    /// the devname if found. The returned string is allocated by libblkid and freed here.
+    pub fn evaluate_tag(&self, token: &str, value: &str) -> Option<String> {
+        let token = CString::new(token).ok()?;
+        let value = CString::new(value).ok()?;
+        let mut cache = self.0;
+        let ptr = unsafe { blkid_evaluate_tag(token.as_ptr(), value.as_ptr(), &mut cache) };
+        if ptr.is_null() {
+            None
+        } else {
+            let s = unsafe { CStr::from_ptr(ptr).to_str().ok()?.to_owned() };
+            unsafe { libc::free(ptr as *mut _) };
+            Some(s)
+        }
+    }
+
+    /// Look up a device by spec (e.g. "LABEL=root" or "/dev/sda1") and return
+    /// the devname if found.
+    pub fn evaluate_spec(&self, spec: &str) -> Option<String> {
+        let spec = CString::new(spec).ok()?;
+        let mut cache = self.0;
+        let ptr = unsafe { blkid_evaluate_spec(spec.as_ptr(), &mut cache) };
+        if ptr.is_null() {
+            None
+        } else {
+            let s = unsafe { CStr::from_ptr(ptr).to_str().ok()?.to_owned() };
+            unsafe { libc::free(ptr as *mut _) };
+            Some(s)
+        }
+    }
+
+    /// Returns the string of the device identified by a token (e.g. token="LABEL",
+    /// value="root"), or by a device name if token is a device path and value is `None`.
+    pub fn get_devname(&self, token: &str, value: Option<&str>) -> Option<String> {
+        let token = CString::new(token).ok()?;
+        let value_c = value.map(|v| CString::new(v).ok()).flatten();
+        let value_ptr = value_c.as_ref().map_or(ptr::null(), |c| c.as_ptr());
+        let ptr = unsafe { blkid_get_devname(self.0, token.as_ptr(), value_ptr) };
+        if ptr.is_null() {
+            None
+        } else {
+            let s = unsafe { CStr::from_ptr(ptr).to_str().ok()?.to_owned() };
+            unsafe { libc::free(ptr as *mut _) };
+            Some(s)
+        }
     }
 }
