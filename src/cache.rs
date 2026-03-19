@@ -11,7 +11,6 @@ use std::{
     path::Path,
     ptr,
 };
-extern crate libc;
 
 #[derive(Debug)]
 pub struct Cache(pub(crate) blkid_cache);
@@ -27,7 +26,7 @@ impl Cache {
     /// environment variable `BLKID_FILE`
     pub fn new() -> BlkIdResult<Self> {
         let mut cache: blkid_cache = ptr::null_mut();
-        unsafe { c_result(blkid_get_cache(&mut cache, ptr::null())) }?;
+        unsafe { c_result(blkid_get_cache(&mut cache, ptr::null()), "blkid_get_cache") }?;
         Ok(Self(cache))
     }
 
@@ -35,18 +34,18 @@ impl Cache {
     pub fn new_by_path<P: AsRef<Path>>(path: P) -> BlkIdResult<Self> {
         let mut cache: blkid_cache = ptr::null_mut();
         let path = path_to_cstring(path)?;
-        unsafe { c_result(blkid_get_cache(&mut cache, path.as_ptr())) }?;
+        unsafe { c_result(blkid_get_cache(&mut cache, path.as_ptr()), "blkid_get_cache") }?;
         Ok(Self(cache))
     }
 
     /// Probes all block devices
     pub fn probe_all(&self) -> BlkIdResult<()> {
-        unsafe { c_result(blkid_probe_all(self.0)).map(|_| ()) }
+        unsafe { c_result(blkid_probe_all(self.0), "blkid_probe_all").map(|_| ()) }
     }
 
     /// Probes all new block devices
     pub fn prob_all_new(&self) -> BlkIdResult<()> {
-        unsafe { c_result(blkid_probe_all_new(self.0)).map(|_| ()) }
+        unsafe { c_result(blkid_probe_all_new(self.0), "blkid_probe_all_new").map(|_| ()) }
     }
 
     /// The `libblkid` probing is based on devices from `/proc/partitions` by default. This file
@@ -61,11 +60,11 @@ impl Cache {
     ///
     /// Devices which were detected by this function won't be written to `blkid.tab` cache file
     pub fn probe_all_removable(&self) -> BlkIdResult<()> {
-        unsafe { c_result(blkid_probe_all_removable(self.0)).map(|_| ()) }
+        unsafe { c_result(blkid_probe_all_removable(self.0), "blkid_probe_all_removable").map(|_| ()) }
     }
 
     /// Returns iterator over all devices are found by probe
-    pub fn devs(&self) -> Devs<'_> {
+    pub fn devs(&self) -> BlkIdResult<Devs<'_>> {
         Devs::new(self)
     }
 
@@ -75,7 +74,7 @@ impl Cache {
     /// then create an empty device entry
     pub fn get_dev(&self, name: &str, flags: GetDevFlags) -> BlkIdResult<Dev<'_>> {
         let devname = CString::new(name)?;
-        let dev = unsafe { c_result(blkid_get_dev(self.0, devname.as_ptr(), flags.bits())) }?;
+        let dev = unsafe { c_result(blkid_get_dev(self.0, devname.as_ptr(), flags.bits()), "blkid_get_dev") }?;
         Ok(Dev::new(dev))
     }
 
@@ -105,6 +104,7 @@ impl Cache {
             Ok(None)
         } else {
             let value = unsafe { CStr::from_ptr(ptr).to_str()?.to_owned() };
+            unsafe { libc::free(ptr as *mut _) };
             Ok(Some(value))
         }
     }
@@ -119,8 +119,7 @@ impl Cache {
     pub fn evaluate_tag(&self, token: &str, value: &str) -> Option<String> {
         let token = CString::new(token).ok()?;
         let value = CString::new(value).ok()?;
-        let mut cache = self.0;
-        let ptr = unsafe { blkid_evaluate_tag(token.as_ptr(), value.as_ptr(), &mut cache) };
+        let ptr = unsafe { blkid_evaluate_tag(token.as_ptr(), value.as_ptr(), ptr::null_mut()) };
         if ptr.is_null() {
             None
         } else {
@@ -134,8 +133,7 @@ impl Cache {
     /// the devname if found.
     pub fn evaluate_spec(&self, spec: &str) -> Option<String> {
         let spec = CString::new(spec).ok()?;
-        let mut cache = self.0;
-        let ptr = unsafe { blkid_evaluate_spec(spec.as_ptr(), &mut cache) };
+        let ptr = unsafe { blkid_evaluate_spec(spec.as_ptr(), ptr::null_mut()) };
         if ptr.is_null() {
             None
         } else {
@@ -147,17 +145,20 @@ impl Cache {
 
     /// Returns the string of the device identified by a token (e.g. token="LABEL",
     /// value="root"), or by a device name if token is a device path and value is `None`.
-    pub fn get_devname(&self, token: &str, value: Option<&str>) -> Option<String> {
-        let token = CString::new(token).ok()?;
-        let value_c = value.map(|v| CString::new(v).ok()).flatten();
+    pub fn get_devname(&self, token: &str, value: Option<&str>) -> BlkIdResult<Option<String>> {
+        let token = CString::new(token)?;
+        let value_c = match value {
+            Some(v) => Some(CString::new(v)?),
+            None => None,
+        };
         let value_ptr = value_c.as_ref().map_or(ptr::null(), |c| c.as_ptr());
         let ptr = unsafe { blkid_get_devname(self.0, token.as_ptr(), value_ptr) };
         if ptr.is_null() {
-            None
+            Ok(None)
         } else {
-            let s = unsafe { CStr::from_ptr(ptr).to_str().ok()?.to_owned() };
+            let s = unsafe { CStr::from_ptr(ptr).to_str()?.to_owned() };
             unsafe { libc::free(ptr as *mut _) };
-            Some(s)
+            Ok(Some(s))
         }
     }
 }

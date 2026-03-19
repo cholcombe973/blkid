@@ -86,7 +86,7 @@ bitflags! {
 }
 
 /// Returns the device name for the given device number. Returns `None` if not found.
-pub fn devno_to_devname(devno: u64) -> Option<String> {
+pub fn devno_to_devname(devno: libc::dev_t) -> Option<String> {
     let ptr = unsafe { blkid_devno_to_devname(devno) };
     if ptr.is_null() {
         None
@@ -99,16 +99,19 @@ pub fn devno_to_devname(devno: u64) -> Option<String> {
 
 /// Converts a device number to its whole-disk device name and device number.
 /// Returns `(disk_name, disk_devno)`.
-pub fn devno_to_wholedisk(devno: u64) -> BlkIdResult<(String, u64)> {
-    let mut buf = vec![0u8; 128];
-    let mut diskdevno: u64 = 0;
+pub fn devno_to_wholedisk(devno: libc::dev_t) -> BlkIdResult<(String, libc::dev_t)> {
+    let mut buf = vec![0u8; 4096];
+    let mut diskdevno: libc::dev_t = 0;
     unsafe {
-        c_result(blkid_devno_to_wholedisk(
-            devno,
-            buf.as_mut_ptr() as *mut _,
-            buf.len(),
-            &mut diskdevno,
-        ))?;
+        c_result(
+            blkid_devno_to_wholedisk(
+                devno,
+                buf.as_mut_ptr() as *mut _,
+                buf.len(),
+                &mut diskdevno,
+            ),
+            "blkid_devno_to_wholedisk",
+        )?;
     }
     let name = unsafe { CStr::from_ptr(buf.as_ptr() as *const _) }
         .to_str()?
@@ -121,11 +124,14 @@ pub fn encode_string(input: &str) -> BlkIdResult<String> {
     let c_input = CString::new(input)?;
     let mut buf = vec![0u8; input.len() * 4 + 1];
     unsafe {
-        c_result(blkid_encode_string(
-            c_input.as_ptr(),
-            buf.as_mut_ptr() as *mut _,
-            buf.len(),
-        ))?;
+        c_result(
+            blkid_encode_string(
+                c_input.as_ptr(),
+                buf.as_mut_ptr() as *mut _,
+                buf.len(),
+            ),
+            "blkid_encode_string",
+        )?;
     }
     let s = unsafe { CStr::from_ptr(buf.as_ptr() as *const _) }
         .to_str()?
@@ -138,11 +144,14 @@ pub fn safe_string(input: &str) -> BlkIdResult<String> {
     let c_input = CString::new(input)?;
     let mut buf = vec![0u8; input.len() + 1];
     unsafe {
-        c_result(blkid_safe_string(
-            c_input.as_ptr(),
-            buf.as_mut_ptr() as *mut _,
-            buf.len(),
-        ))?;
+        c_result(
+            blkid_safe_string(
+                c_input.as_ptr(),
+                buf.as_mut_ptr() as *mut _,
+                buf.len(),
+            ),
+            "blkid_safe_string",
+        )?;
     }
     let s = unsafe { CStr::from_ptr(buf.as_ptr() as *const _) }
         .to_str()?
@@ -170,9 +179,12 @@ pub fn get_library_version() -> (i32, String, String) {
 pub fn parse_version_string(ver: &str) -> BlkIdResult<i32> {
     let c_ver = CString::new(ver)?;
     let code = unsafe { blkid_parse_version_string(c_ver.as_ptr()) };
-    // blkid_parse_version_string returns -1 on error
+    // blkid_parse_version_string returns -1 on error but does not set errno
     if code < 0 {
-        Err(BlkIdError::Io(std::io::Error::last_os_error()))
+        Err(BlkIdError::FfiError {
+            func: "blkid_parse_version_string",
+            errno: std::io::Error::new(std::io::ErrorKind::InvalidInput, "invalid version string"),
+        })
     } else {
         Ok(code)
     }
@@ -182,7 +194,7 @@ pub fn parse_version_string(ver: &str) -> BlkIdResult<i32> {
 pub fn send_uevent(devname: &str, action: &str) -> BlkIdResult<()> {
     let c_devname = CString::new(devname)?;
     let c_action = CString::new(action)?;
-    unsafe { c_result(blkid_send_uevent(c_devname.as_ptr(), c_action.as_ptr())).map(|_| ()) }
+    unsafe { c_result(blkid_send_uevent(c_devname.as_ptr(), c_action.as_ptr()), "blkid_send_uevent").map(|_| ()) }
 }
 
 /// Parse a "NAME=value" tag string. Returns `(name, value)`.
@@ -191,18 +203,23 @@ pub fn parse_tag_string(tag: &str) -> BlkIdResult<(String, String)> {
     let mut ret_type: *mut libc::c_char = ptr::null_mut();
     let mut ret_val: *mut libc::c_char = ptr::null_mut();
     unsafe {
-        c_result(blkid_parse_tag_string(
-            c_tag.as_ptr(),
-            &mut ret_type,
-            &mut ret_val,
-        ))?;
+        c_result(
+            blkid_parse_tag_string(
+                c_tag.as_ptr(),
+                &mut ret_type,
+                &mut ret_val,
+            ),
+            "blkid_parse_tag_string",
+        )?;
     }
-    let name = unsafe { CStr::from_ptr(ret_type).to_str()?.to_owned() };
-    let value = unsafe { CStr::from_ptr(ret_val).to_str()?.to_owned() };
+    let name_bytes = unsafe { CStr::from_ptr(ret_type).to_bytes().to_vec() };
+    let value_bytes = unsafe { CStr::from_ptr(ret_val).to_bytes().to_vec() };
     unsafe {
         libc::free(ret_type as *mut _);
         libc::free(ret_val as *mut _);
     }
+    let name = std::str::from_utf8(&name_bytes)?.to_owned();
+    let value = std::str::from_utf8(&value_bytes)?.to_owned();
     Ok((name, value))
 }
 
@@ -296,7 +313,31 @@ mod tests {
     #[test]
     fn test_devno_to_devname_invalid() {
         // devno 0 should not resolve to a real device
-        assert!(devno_to_devname(0).is_none());
+        let devno: libc::dev_t = 0;
+        assert!(devno_to_devname(devno).is_none());
+    }
+
+    #[test]
+    fn test_encode_string_empty() {
+        let result = encode_string("").unwrap();
+        assert_eq!(result, "");
+    }
+
+    #[test]
+    fn test_safe_string_empty() {
+        let result = safe_string("").unwrap();
+        assert_eq!(result, "");
+    }
+
+    #[test]
+    fn test_parse_tag_string_empty_value() {
+        // "KEY=" with empty value — libblkid may reject or accept this
+        let result = parse_tag_string("KEY=");
+        // Either it succeeds with empty value or fails; both are acceptable
+        if let Ok((name, value)) = result {
+            assert_eq!(name, "KEY");
+            assert_eq!(value, "");
+        }
     }
 
     #[test]

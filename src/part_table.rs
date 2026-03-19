@@ -32,7 +32,7 @@ impl<'a> PartTable<'a> {
     /// The position is relative to begin of the device as defined by `Prober::set_device` for
     /// primary partition table, and relative to parental partition for nested partition tables.
     pub fn get_offset(&self) -> BlkIdResult<i64> {
-        unsafe { c_result(blkid_parttable_get_offset(self.0)) }
+        unsafe { c_result(blkid_parttable_get_offset(self.0), "blkid_parttable_get_offset") }
     }
 
     /// Returns parent for nested partition tables

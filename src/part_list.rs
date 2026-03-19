@@ -18,7 +18,7 @@ impl<'a> PartList<'a> {
     ///
     /// See also [`Self::get_table`].
     pub fn get_partition(&self, part_num: i32) -> BlkIdResult<Partition<'a>> {
-        unsafe { c_result(blkid_partlist_get_partition(self.0, part_num)).map(Partition::new) }
+        unsafe { c_result(blkid_partlist_get_partition(self.0, part_num), "blkid_partlist_get_partition").map(Partition::new) }
     }
 
     /// Returns partition object by the partiton number (e.g. `N` from sda`N`).
@@ -27,7 +27,7 @@ impl<'a> PartList<'a> {
     /// order" partition tables. partition N is located after partition N+1 on the disk.
     #[cfg(blkid = "2.25")]
     pub fn get_partition_by_parno(&self, partno: i32) -> BlkIdResult<Partition<'a>> {
-        unsafe { c_result(blkid_partlist_get_partition_by_partno(self.0, partno)).map(Partition::new) }
+        unsafe { c_result(blkid_partlist_get_partition_by_partno(self.0, partno), "blkid_partlist_get_partition_by_partno").map(Partition::new) }
     }
 
     /// Returns all partitions
@@ -48,8 +48,8 @@ impl<'a> PartList<'a> {
     ///
     /// This function is necessary when you want to make a relation between an entry in the
     /// partition table (list) and block devices in your system.
-    pub fn devno_to_partition(&self, devno: u64) -> BlkIdResult<Partition<'a>> {
-        unsafe { c_result(blkid_partlist_devno_to_partition(self.0, devno)).map(Partition::new) }
+    pub fn devno_to_partition(&self, devno: libc::dev_t) -> BlkIdResult<Partition<'a>> {
+        unsafe { c_result(blkid_partlist_devno_to_partition(self.0, devno), "blkid_partlist_devno_to_partition").map(Partition::new) }
     }
 
     /// Returns [`PartTable`] or `None` if there is not a partition table on the device
@@ -64,6 +64,6 @@ impl<'a> PartList<'a> {
 
     /// Returns number of partitions in the list
     pub fn numof_partitions(&self) -> BlkIdResult<i32> {
-        unsafe { c_result(blkid_partlist_numof_partitions(self.0)) }
+        unsafe { c_result(blkid_partlist_numof_partitions(self.0), "blkid_partlist_numof_partitions") }
     }
 }
