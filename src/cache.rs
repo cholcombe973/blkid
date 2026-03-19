@@ -12,6 +12,11 @@ use std::{
     ptr,
 };
 
+/// Handle to the blkid device cache.
+///
+/// The cache stores previously probed device information for faster lookups. It is typically
+/// backed by a file (default: `/etc/blkid.tab` or as configured by the `BLKID_FILE` environment
+/// variable).
 #[derive(Debug)]
 pub struct Cache(pub(crate) blkid_cache);
 
@@ -22,15 +27,15 @@ impl Drop for Cache {
 }
 
 impl Cache {
-    /// Creates and initialize cache handler by default path. Default path can be overridden by the
-    /// environment variable `BLKID_FILE`
+    /// Creates and initializes a cache handler using the default path. The default path can be
+    /// overridden by the environment variable `BLKID_FILE`.
     pub fn new() -> BlkIdResult<Self> {
         let mut cache: blkid_cache = ptr::null_mut();
         unsafe { c_result(blkid_get_cache(&mut cache, ptr::null()), "blkid_get_cache") }?;
         Ok(Self(cache))
     }
 
-    /// Creates and initialize cache hadler by particular path
+    /// Creates and initializes a cache handler using the given path.
     pub fn new_by_path<P: AsRef<Path>>(path: P) -> BlkIdResult<Self> {
         let mut cache: blkid_cache = ptr::null_mut();
         let path = path_to_cstring(path)?;
@@ -63,14 +68,14 @@ impl Cache {
         unsafe { c_result(blkid_probe_all_removable(self.0), "blkid_probe_all_removable").map(|_| ()) }
     }
 
-    /// Returns iterator over all devices are found by probe
+    /// Returns an iterator over all devices found by probing.
     pub fn devs(&self) -> BlkIdResult<Devs<'_>> {
         Devs::new(self)
     }
 
     /// Find a dev struct in the cache by device name, if available.
     ///
-    /// If there is no entry with the specified device name, and the [`GetDevFlag::CREATE`] is set,
+    /// If there is no entry with the specified device name, and [`GetDevFlags::CREATE`] is set,
     /// then create an empty device entry
     pub fn get_dev(&self, name: &str, flags: GetDevFlags) -> BlkIdResult<Dev<'_>> {
         let devname = CString::new(name)?;
@@ -94,7 +99,7 @@ impl Cache {
         }
     }
 
-    /// Find a tag name (e.g. [`TagType::Label`] or [`TagType::Uuid`]) on a specific device
+    /// Finds a tag value (e.g. `LABEL` or `UUID`) on a specific device.
     pub fn find_tag_value(&self, tag_type: TagType, dev_name: &str) -> BlkIdResult<Option<String>> {
         let tagname = CString::new(tag_type.to_string())?;
         let devname = CString::new(dev_name)?;
@@ -109,7 +114,7 @@ impl Cache {
         }
     }
 
-    /// Removes garbage (non-existing devices) from the cache
+    /// Removes garbage (non-existing devices) from the cache.
     pub fn gc(&self) {
         unsafe { blkid_gc_cache(self.0) }
     }

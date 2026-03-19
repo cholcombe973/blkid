@@ -1,5 +1,22 @@
-//! See https://mirrors.edge.kernel.org/pub/linux/utils/util-linux/v2.37/libblkid-docs/index.html
-//! for the reference manual to the FFI bindings
+//! Safe Rust bindings to [`libblkid`](https://github.com/util-linux/util-linux/tree/master/libblkid),
+//! the block device identification library from util-linux.
+//!
+//! This crate provides wrappers around the low-level probing, cache, partition, and topology
+//! interfaces exposed by libblkid.
+//!
+//! # Quick start
+//!
+//! ```rust,no_run
+//! use blkid::prober::Prober;
+//!
+//! let prober = Prober::new_from_filename("/dev/sda1").unwrap();
+//! prober.do_probe().unwrap();
+//! let values = prober.get_values_map().unwrap();
+//! println!("{:#?}", values);
+//! ```
+//!
+//! See the [libblkid reference manual](https://mirrors.edge.kernel.org/pub/linux/utils/util-linux/v2.37/libblkid-docs/index.html)
+//! for details on the underlying C API.
 
 pub mod cache;
 pub mod dev;

@@ -68,11 +68,13 @@ impl Tag {
     }
 }
 
-/// This is unified form of tag types.
-/// Each of inner enum value implement `From` trait, which allows to construct this enum using the
-/// following syntax:
-/// ```rust,text
-/// use blkid::{tag::TagType, tag::PartitionTag};
+/// Unified tag type enum covering superblock, partition, and topology tags.
+///
+/// Each inner enum value implements `From`, which allows constructing this enum as follows:
+///
+/// ```rust
+/// use blkid::tag::{TagType, PartitionTag};
+///
 /// let part_tag = PartitionTag::Ptuuid;
 /// let tag_type: TagType = part_tag.into();
 /// let tag_part_type = TagType::Partition(PartitionTag::Ptuuid);
@@ -83,7 +85,7 @@ impl Tag {
 pub enum TagType {
     Superblock(SuperblockTag),
     Partition(PartitionTag),
-    Topoligy(TopologyTag),
+    Topology(TopologyTag),
     Unknown(String),
 }
 
@@ -92,7 +94,7 @@ impl std::fmt::Display for TagType {
         let name = match &self {
             Self::Superblock(tag) => tag.to_string(),
             Self::Partition(tag) => tag.to_string(),
-            Self::Topoligy(tag) => tag.to_string(),
+            Self::Topology(tag) => tag.to_string(),
             Self::Unknown(tag) => tag.clone(),
         };
         write!(f, "{}", name)
@@ -106,7 +108,7 @@ impl From<&str> for TagType {
         } else if let Ok(tag) = PartitionTag::from_str(name) {
             TagType::Partition(tag)
         } else if let Ok(tag) = TopologyTag::from_str(name) {
-            TagType::Topoligy(tag)
+            TagType::Topology(tag)
         } else {
             TagType::Unknown(name.to_owned())
         }
@@ -210,7 +212,7 @@ pub enum TopologyTag {
     MinimumIoSize,
     /// Usually the stripe width for RAID or zero. For RAID arrays it is usually the stripe width
     /// or the internal track size
-    OptiomalIoSize,
+    OptimalIoSize,
     /// Indicates how many bytes the beginning of the device is offset from the disk's natural
     /// alignment
     AlignmentOffset,
@@ -218,6 +220,6 @@ pub enum TopologyTag {
 
 impl From<TopologyTag> for TagType {
     fn from(tag: TopologyTag) -> Self {
-        Self::Topoligy(tag)
+        Self::Topology(tag)
     }
 }
