@@ -9,7 +9,7 @@ use std::{
     ptr,
 };
 
-/// Wrapper around device iterator
+/// Iterator over devices in a [`Cache`].
 pub struct Devs<'a> {
     pub(crate) iter: blkid_dev_iterate,
     _marker: PhantomData<&'a Cache>,
@@ -36,7 +36,7 @@ impl<'a> Iterator for Devs<'a> {
 }
 
 impl<'a> Devs<'a> {
-    /// Creates wrapper around device
+    /// Creates a new device iterator for the given cache.
     pub fn new(cache: &'a Cache) -> BlkIdResult<Devs<'a>> {
         let iter = unsafe { blkid_dev_iterate_begin(cache.0) };
         if iter.is_null() {
@@ -63,7 +63,7 @@ impl<'a> Devs<'a> {
     }
 }
 
-/// The device object keeps information about one device
+/// A device entry from the blkid cache.
 pub struct Dev<'a>(pub(crate) blkid_dev, PhantomData<&'a Cache>);
 
 impl<'a> Dev<'a> {

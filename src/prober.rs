@@ -13,31 +13,36 @@ use std::{
     ptr,
 };
 
-/// Low-level probing setting
+/// Low-level probing handle.
 ///
 /// The probing routines are grouped together into separate chains. Currently, the library provides
-/// superblocks, partitions and topology chains.
+/// superblocks, partitions, and topology chains.
 ///
-/// The probing routines is possible to filter (enable/disable) by type (e.g. fstype "vfat" or
-/// partype "gpt") or by usage flags (e.g. BLKID_USAGE_RAID). These filters are per-chain. Note that
-/// always when you touch the chain filter the current probing position is reset and probing starts
-/// from scratch. It means that the chain filter should not be modified during probing, for example
-/// in loop where you call [`Self::do_probe`].
+/// Probing routines can be filtered (enabled/disabled) by type (e.g. fstype `"vfat"` or
+/// partype `"gpt"`) or by usage flags (e.g. `BLKID_USAGE_RAID`). These filters are per-chain.
+/// Note that modifying a chain filter resets the current probing position and probing starts
+/// from scratch. The chain filter should not be modified during probing, for example
+/// in a loop where you call [`Self::do_probe`].
 ///
-/// The probing routines inside the chain are mutually exclusive by default - only few probing
-/// routines are marked as "tolerant". The "tolerant" probing routines are used for filesystem
-/// which can share the same device with any other filesystem. The [`Self::safeprobe`] checks for
+/// The probing routines inside a chain are mutually exclusive by default -- only a few probing
+/// routines are marked as "tolerant". The "tolerant" probing routines are used for filesystems
+/// that can share the same device with any other filesystem. [`Self::do_safe_probe`] checks for
 /// the "tolerant" flag.
 ///
-/// The `superblocks` chain is enabled by default. The all others chains is necessary to enable by
-/// `enable_'CHAINNAME'()`.
+/// The `superblocks` chain is enabled by default. All other chains must be enabled explicitly
+/// (e.g. [`Self::enable_partitions`], [`Self::enable_topology`]).
 pub struct Prober(pub(crate) blkid_probe);
 
+/// Result state returned by probing operations.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub enum ProbeState {
+    /// A signature was successfully detected.
     Success,
+    /// Probing is complete; no more signatures to find.
     Done,
+    /// No signature was detected on the device.
     NothingDetected,
+    /// Multiple conflicting signatures were detected (ambiguous result).
     Ambivalent,
 }
 
@@ -48,14 +53,14 @@ impl Drop for Prober {
 }
 
 impl Prober {
-    /// Create newly allocated `probe` struct.
+    /// Creates a newly allocated probe handle.
     pub fn new() -> BlkIdResult<Self> {
         let probe = unsafe { c_result(blkid_new_probe(), "blkid_new_probe") }?;
         Ok(Self(probe))
     }
 
-    /// Create newly allocated `probe` struct by filename.
-    /// `filename` can be either regular file or device
+    /// Creates a newly allocated probe handle for the given file.
+    /// `filename` can be either a regular file or a block device.
     pub fn new_from_filename<P: AsRef<Path>>(filename: P) -> BlkIdResult<Self> {
         let path = path_to_cstring(filename)?;
         let probe = unsafe { c_result(blkid_new_probe_from_filename(path.as_ptr()), "blkid_new_probe_from_filename") }?;
@@ -63,33 +68,36 @@ impl Prober {
     }
 
     /// Calls probing functions in all enabled chains. The superblocks chain is enabled by default.
-    /// Stores result from only one probing function.
+    /// Stores the result from only one probing function.
     ///
     /// # Note
     ///
     /// It's necessary to call this routine in a loop to get results from all probing functions in
-    /// all chains. The probing is reset by [`Self::reset`] or by filter functions.
+    /// all chains. The probing is reset by [`Self::reset_probe`] or by filter functions.
     ///
     /// Returns the following possible states:
-    /// * [`ProberState::Success`]
-    /// * [`ProberState::Done`]
+    /// * [`ProbeState::Success`]
+    /// * [`ProbeState::Done`]
     ///
-    /// # Exapmles
+    /// # Examples
     ///
-    /// * Basic case - use the first result only
-    /// ```ignore, compile_fail
-    /// let prober = Prober::new().unwrap();
+    /// Basic case -- use the first result only:
+    /// ```rust,no_run
+    /// # use blkid::prober::{Prober, ProbeState};
+    /// let prober = Prober::new_from_filename("/dev/sda1").unwrap();
     ///
-    /// if prober.do_probe() == ProbeState::success {
+    /// if let Ok(ProbeState::Success) = prober.do_probe() {
     ///     let value_map = prober.get_values_map().unwrap();
     ///     println!("{:#?}", value_map);
     /// }
     /// ```
-    /// * Advanced case - probe for all signatures
-    /// ```ignore, compile_fail
-    /// let prober = Prober::new().unwrap();
     ///
-    /// while prober.do_probe() == ProbeState::Done {
+    /// Advanced case -- probe for all signatures:
+    /// ```rust,no_run
+    /// # use blkid::prober::{Prober, ProbeState};
+    /// let prober = Prober::new_from_filename("/dev/sda").unwrap();
+    ///
+    /// while let Ok(ProbeState::Success) = prober.do_probe() {
     ///     let value_map = prober.get_values_map().unwrap();
     ///     println!("{:#?}", value_map);
     /// }
@@ -107,23 +115,23 @@ impl Prober {
         }
     }
 
-    /// This function gathers probing results from all enabled chains and checks for ambivalent
-    /// results (e.g. more filesystems on the device).
+    /// Gathers probing results from all enabled chains and checks for ambivalent
+    /// results (e.g. more than one filesystem on the device).
     ///
-    /// This is string-based `NAME=value` interface only.
+    /// This is the string-based `NAME=value` interface only.
     ///
     /// # Note
     ///
-    /// Suberblocks chain -- the function does not check for filesystems when a `RAID` signature is
-    /// detected. The function also does not check for collision between `RAID`s. The first detected
+    /// Superblocks chain -- the function does not check for filesystems when a `RAID` signature is
+    /// detected. The function also does not check for collisions between `RAID`s. The first detected
     /// `RAID` is returned. The function checks for collision between partition table and `RAID`
-    /// signature - it's recommended to enable partitions chain ([`Self::enable_partitions`])
-    /// together with superblocks chain (enabled by default).
+    /// signature -- it's recommended to enable the partitions chain ([`Self::enable_partitions`])
+    /// together with the superblocks chain (enabled by default).
     ///
     /// Returns the following possible states:
-    /// * [`ProberState::Success`]
-    /// * [`ProberState::NothingDetected`]
-    /// * [`ProberState::Ambivalent`]
+    /// * [`ProbeState::Success`]
+    /// * [`ProbeState::NothingDetected`]
+    /// * [`ProbeState::Ambivalent`]
     pub fn do_safe_probe(&self) -> BlkIdResult<ProbeState> {
         let ret_code = unsafe { blkid_do_safeprobe(self.0) };
 
@@ -138,12 +146,12 @@ impl Prober {
         }
     }
 
-    /// This function gathers probing results from all enabled chains. Same as
-    /// [`Self::do_safe_probe`] but does not check for collision between probing result.
+    /// Gathers probing results from all enabled chains. Same as
+    /// [`Self::do_safe_probe`] but does not check for collisions between probing results.
     ///
     /// Returns the following possible states:
-    /// * [`ProberState::Success`]
-    /// * [`ProberState::NothingDetected`]
+    /// * [`ProbeState::Success`]
+    /// * [`ProbeState::NothingDetected`]
     pub fn do_full_probe(&self) -> BlkIdResult<ProbeState> {
         let ret_code = unsafe { blkid_do_fullprobe(self.0) };
 
@@ -157,29 +165,31 @@ impl Prober {
         }
     }
 
-    /// Erases the current signature detected by prober. The prober has to be open in `O_RDWR` mode,
-    /// `BLKID_SUBLKS_MAGIC` or/and `BLKID_PARTS_MAGIC` flags has to be enabled. That means that you
-    /// should use [`Self::set_device`] with options above.
+    /// Erases the current signature detected by the prober. The prober must be opened in `O_RDWR`
+    /// mode, and `BLKID_SUBLKS_MAGIC` and/or `BLKID_PARTS_MAGIC` flags must be enabled via
+    /// [`Self::set_superblocks_flags`] or [`Self::set_partitions_flags`].
     ///
-    /// After successful signature removing the prober will be moved one step back and the next
-    /// [`Self::do_probe`] call will again call previously called probing function.
+    /// After successful signature removal the prober will be moved one step back and the next
+    /// [`Self::do_probe`] call will again call the previously called probing function.
     ///
     /// # Examples
     ///
-    /// ```ignore, compile_fail
+    /// ```rust,no_run
     /// use std::os::unix::io::AsRawFd;
     /// use std::fs::OpenOptions;
+    /// use blkid::prober::{Prober, ProbeState};
     ///
-    /// let mut file = OpenOptions::new()
+    /// let file = OpenOptions::new()
     ///     .read(true)
     ///     .write(true)
-    ///     .open("/dev/sda");
-    /// let fd: RawFd = file.as_raw_fd();
+    ///     .open("/dev/sda")
+    ///     .unwrap();
+    /// let fd = file.as_raw_fd();
     ///
     /// let mut prober = Prober::new().unwrap();
     /// prober.set_device(fd, 0, None).unwrap();
     ///
-    /// while prober.do_probe() == ProbeState::Success {
+    /// while let Ok(ProbeState::Success) = prober.do_probe() {
     ///     prober.do_wipe(false).unwrap();
     /// }
     /// ```
@@ -196,7 +206,8 @@ impl Prober {
         }
     }
 
-    /// Retrieve the Nth item `(Name, Value)` in the probing result, (0..self.numof_values())
+    /// Retrieves the Nth `(name, value)` pair in the probing result, where `num` is in
+    /// `0..self.numof_values()`.
     pub fn get_value(&self, num: i32) -> BlkIdResult<(String, String)> {
         let mut name_ptr: *const ::libc::c_char = ptr::null();
         let mut data_ptr: *const ::libc::c_char = ptr::null();
@@ -217,7 +228,7 @@ impl Prober {
         Ok((name_value, data_value))
     }
 
-    /// Retrieve a `HashMap` of all the probed values
+    /// Retrieves a [`HashMap`] of all the probed values.
     pub fn get_values_map(&self) -> BlkIdResult<HashMap<String, String>> {
         let numof_values = self.numof_values()?;
         let mut map = HashMap::with_capacity(numof_values as usize);
@@ -230,17 +241,17 @@ impl Prober {
         Ok(map)
     }
 
-    /// Check if device has the specified value
+    /// Checks if the device has the specified value.
     pub fn has_value(&self, name: &str) -> BlkIdResult<bool> {
         let name = CString::new(name)?;
         unsafe { c_result(blkid_probe_has_value(self.0, name.as_ptr()), "blkid_probe_has_value").map(|val| val == 1) }
     }
 
-    /// Value by specified `name`
+    /// Looks up a probing result value by `name`.
     ///
     /// # Note
     ///
-    /// You should call [`Self::do_probe`] before using this
+    /// You must call [`Self::do_probe`] before using this.
     pub fn lookup_value(&self, name: &str) -> BlkIdResult<String> {
         let name = CString::new(name)?;
         let mut data_ptr: *const ::libc::c_char = ptr::null();
@@ -258,57 +269,57 @@ impl Prober {
         Ok(data_value)
     }
 
-    /// Number of values in probing result
+    /// Returns the number of values in the probing result.
     pub fn numof_values(&self) -> BlkIdResult<i32> {
         unsafe { c_result(blkid_probe_numof_values(self.0), "blkid_probe_numof_values") }
     }
 
-    /// Block device number, or 0 for regular file
+    /// Returns the block device number, or 0 for a regular file.
     pub fn get_devno(&self) -> libc::dev_t {
         unsafe { blkid_probe_get_devno(self.0) }
     }
 
-    /// File descriptor for assigned device/file
+    /// Returns the file descriptor for the assigned device/file.
     pub fn get_fd(&self) -> i32 {
         unsafe { blkid_probe_get_fd(self.0) }
     }
 
-    /// Block device logical sector size (`BLKSSZGET` ioctl, default 512)
+    /// Returns the block device logical sector size (`BLKSSZGET` ioctl, default 512).
     pub fn get_sector_size(&self) -> u32 {
         unsafe { blkid_probe_get_sectorsize(self.0) }
     }
 
-    /// Set logical sector size.
+    /// Sets the logical sector size.
     ///
-    /// Note that [`Self::set_device`] resets this setting. Use it after [`Self::set_device`] and
+    /// Note that [`Self::set_device`] resets this setting. Call this after [`Self::set_device`] and
     /// before any probing call.
     #[cfg(blkid = "2.30")]
     pub fn set_sector_size(&self, size: u32) -> BlkIdResult<()> {
         unsafe { c_result(blkid_probe_set_sectorsize(self.0, size), "blkid_probe_set_sectorsize").map(|_| ()) }
     }
 
-    /// 512-byte sector count
+    /// Returns the 512-byte sector count.
     pub fn get_sectors(&self) -> BlkIdResult<i64> {
         unsafe { c_result(blkid_probe_get_sectors(self.0), "blkid_probe_get_sectors") }
     }
 
-    /// Size of probing area in bytes as defined by [`Self::set_device`]. If the size of the probing
-    /// area is unrestricted then this function returns the real size of device
+    /// Returns the size of the probing area in bytes as defined by [`Self::set_device`]. If the
+    /// size of the probing area is unrestricted then this function returns the real size of the device.
     pub fn get_size(&self) -> BlkIdResult<i64> {
         unsafe { c_result(blkid_probe_get_size(self.0), "blkid_probe_get_size") }
     }
 
-    /// Offset of probing area as defined by [`Self::set_device`]
+    /// Returns the offset of the probing area as defined by [`Self::set_device`].
     pub fn get_offset(&self) -> BlkIdResult<i64> {
         unsafe { c_result(blkid_probe_get_offset(self.0), "blkid_probe_get_offset") }
     }
 
-    /// Device number of the wholedisk, or 0 for regular files
+    /// Returns the device number of the whole disk, or 0 for regular files.
     pub fn get_wholedisk_devno(&self) -> libc::dev_t {
         unsafe { blkid_probe_get_wholedisk_devno(self.0) }
     }
 
-    /// If device is wholedisk
+    /// Returns `true` if the device is a whole disk.
     pub fn is_wholedisk(&self) -> bool {
         unsafe { blkid_probe_is_wholedisk(self.0) == 1 }
     }
@@ -326,29 +337,21 @@ impl Prober {
         unsafe { c_result(blkid_probe_hide_range(self.0, offset, size), "blkid_probe_hide_range").map(|_| ()) }
     }
 
-    /// Reuse all already read buffers from the device. The buffers may be modified by
-    /// [`Self::hide_range`]. This resets and free all cached buffers. The next [`Self::do_probe`]
-    /// will read all data from the device.
+    /// Resets and frees all cached buffers from the device. The buffers may have been modified by
+    /// [`Self::hide_range`]. The next [`Self::do_probe`] call will read all data from the device.
     #[cfg(blkid = "2.31")]
     pub fn reset_buffers(&self) -> BlkIdResult<()> {
         unsafe { c_result(blkid_probe_reset_buffers(self.0), "blkid_probe_reset_buffers").map(|_| ()) }
     }
 
-    /// This function move pointer to the probing chain one step back - it means that the
-    /// previously used probing function will be called again in the next [`Self::do_probe`] call.
+    /// Moves the probing chain pointer one step back, so the previously used probing function
+    /// will be called again in the next [`Self::do_probe`] call.
     ///
-    /// This is necessary for example if you erase or modify on-disk superblock according to the
-    /// current libblkid probing result.
+    /// This is necessary, for example, if you erase or modify an on-disk superblock based on
+    /// the current libblkid probing result.
     ///
-    /// Note that [`Self::hide_range`] changes semantic of this function and cached buffers are
-    /// not reset, but library uses in-memory modified buffers to call the next probing function.
-    ///
-    /// # Examples
-    ///
-    /// ```ignore, compile_fail
-    /// let prober = Prober::new_from_filename("/dev/sda");
-    /// TODO: coplete this example
-    /// ```
+    /// Note that [`Self::hide_range`] changes the semantics of this function: cached buffers are
+    /// not reset, and the library uses in-memory modified buffers to call the next probing function.
     #[cfg(blkid = "2.23")]
     pub fn step_back(&self) -> BlkIdResult<()> {
         unsafe { c_result(blkid_probe_step_back(self.0), "blkid_probe_step_back").map(|_| ()) }
@@ -365,18 +368,18 @@ impl Prober {
         unsafe { c_result(blkid_probe_set_device(self.0, fd, offset, size), "blkid_probe_set_device").map(|_| ()) }
     }
 
-    /// Zeroize probing results and resets the current probing (this has impact to [`Self::do_probe`]
-    /// only). This function does not touch probing filters and keeps assigned device.
+    /// Zeroizes probing results and resets the current probing (this only affects
+    /// [`Self::do_probe`]). This function does not touch probing filters and keeps the assigned device.
     pub fn reset_probe(&self) {
         unsafe { blkid_reset_probe(self.0) }
     }
 
-    /// Enables/disables the superblocks probing for non-binary interface.
+    /// Enables or disables the superblocks probing for the non-binary interface.
     pub fn enable_superblocks(&self, enable: bool) -> BlkIdResult<()> {
         unsafe { c_result(blkid_probe_enable_superblocks(self.0, enable as i32), "blkid_probe_enable_superblocks").map(|_| ()) }
     }
 
-    /// If known filesystem type
+    /// Returns `true` if `fstype` is a known filesystem type.
     pub fn known_fstype(fstype: &str) -> BlkIdResult<bool> {
         let fstype = CString::new(fstype)?;
         Ok(unsafe { blkid_known_fstype(fstype.as_ptr()) == 1 })
@@ -391,7 +394,7 @@ impl Prober {
         Ok((name, usage))
     }
 
-    /// Filter superblocks probing by filesystem type name.
+    /// Filters superblocks probing by filesystem type name.
     pub fn filter_superblocks_type(
         &self,
         mode: FilterMode,
@@ -417,7 +420,7 @@ impl Prober {
         }
     }
 
-    /// Filter superblocks probing by usage flags.
+    /// Filters superblocks probing by usage flags.
     pub fn filter_superblocks_usage(
         &self,
         mode: FilterMode,
@@ -433,33 +436,33 @@ impl Prober {
         }
     }
 
-    /// Inverts superblocks probing filter
+    /// Inverts the superblocks probing filter.
     pub fn invert_superblocks_filter(&self) -> BlkIdResult<()> {
         unsafe { c_result(blkid_probe_invert_superblocks_filter(self.0), "blkid_probe_invert_superblocks_filter").map(|_| ()) }
     }
 
-    /// Resets superblocks probing filter
+    /// Resets the superblocks probing filter.
     pub fn reset_superblocks_filter(&self) -> BlkIdResult<()> {
         unsafe { c_result(blkid_probe_reset_superblocks_filter(self.0), "blkid_probe_reset_superblocks_filter").map(|_| ()) }
     }
 
-    /// Sets probing flags to the superblocks prober. This function is optional, the default are
-    /// [`Superblocks::DEFAULT`] flags.
+    /// Sets probing flags for the superblocks prober. This function is optional; the default is
+    /// [`SuperblocksFlags::DEFAULT`].
     pub fn set_superblocks_flags(&self, flags: SuperblocksFlags) -> BlkIdResult<()> {
         unsafe { c_result(blkid_probe_set_superblocks_flags(self.0, flags.bits()), "blkid_probe_set_superblocks_flags").map(|_| ()) }
     }
 
-    /// Enables/disables the partitions probing for non-binary interface
+    /// Enables or disables the partitions probing for the non-binary interface.
     pub fn enable_partitions(&self, enable: bool) -> BlkIdResult<()> {
         unsafe { c_result(blkid_probe_enable_partitions(self.0, enable as i32), "blkid_probe_enable_partitions").map(|_| ()) }
     }
 
-    /// Sets probing flags to the partitions prober. This function is optional
+    /// Sets probing flags for the partitions prober. This function is optional.
     pub fn set_partitions_flags(&self, flags: PartitionsFlags) -> BlkIdResult<()> {
         unsafe { c_result(blkid_probe_set_partitions_flags(self.0, flags.bits()), "blkid_probe_set_partitions_flags").map(|_| ()) }
     }
 
-    /// Filter partitions probing by partition type name.
+    /// Filters partitions probing by partition type name.
     pub fn filter_partitions_type(
         &self,
         mode: FilterMode,
@@ -485,23 +488,23 @@ impl Prober {
         }
     }
 
-    /// Inverts partitions probing filter
+    /// Inverts the partitions probing filter.
     pub fn invert_partitions_filter(&self) -> BlkIdResult<()> {
         unsafe { c_result(blkid_probe_invert_partitions_filter(self.0), "blkid_probe_invert_partitions_filter").map(|_| ()) }
     }
 
-    /// Resets partitions probing filter
+    /// Resets the partitions probing filter.
     pub fn reset_partitions_filter(&self) -> BlkIdResult<()> {
         unsafe { c_result(blkid_probe_reset_partitions_filter(self.0), "blkid_probe_reset_partitions_filter").map(|_| ()) }
     }
 
-    /// If known partition table type
+    /// Returns `true` if `pttype` is a known partition table type.
     pub fn known_pttype(pttype: &str) -> BlkIdResult<bool> {
         let pttype = CString::new(pttype)?;
         Ok(unsafe { blkid_known_pttype(pttype.as_ptr()) == 1 })
     }
 
-    /// Returns name of a supported partition.
+    /// Returns the name of a supported partition table type by index.
     #[cfg(blkid = "2.30")]
     pub fn partitions_get_name(idx: usize) -> BlkIdResult<String> {
         let mut name: *const ::libc::c_char = ptr::null();
@@ -514,18 +517,19 @@ impl Prober {
     ///
     /// This is a binary interface for partitions.
     ///
-    /// This is independent on `Self::do_[safe,full]_probe()` and [`Self::enable_partitions`] calls.
+    /// This is independent of [`Self::do_safe_probe`]/[`Self::do_full_probe`] and
+    /// [`Self::enable_partitions`] calls.
     ///
-    /// # WARNING
+    /// # Warning
     ///
     /// The returned object will be overwritten by the next [`Self::part_list`] call for the same
-    /// prober. If you want to use more [`PartList`] objects in the same time you have to create
-    /// more [`Prober`] handlers.
+    /// prober. If you want to use multiple [`PartList`] objects at the same time you must create
+    /// multiple [`Prober`] handles.
     pub fn part_list(&self) -> BlkIdResult<PartList<'_>> {
         unsafe { c_result(blkid_probe_get_partitions(self.0), "blkid_probe_get_partitions").map(PartList::new) }
     }
 
-    /// Enables/disables the topology probing for non-binary interface
+    /// Enables or disables the topology probing for the non-binary interface.
     pub fn enable_topology(&self, enable: bool) -> BlkIdResult<()> {
         unsafe { c_result(blkid_probe_enable_topology(self.0, enable as i32), "blkid_probe_enable_topology").map(|_| ()) }
     }
@@ -534,21 +538,22 @@ impl Prober {
     ///
     /// This is a binary interface for topology values.
     ///
-    /// This is independent on `Self::do_[safe,full]_probe()` and [`Self::enable_partitions`] calls.
+    /// This is independent of [`Self::do_safe_probe`]/[`Self::do_full_probe`] and
+    /// [`Self::enable_partitions`] calls.
     ///
-    /// # WARNING
+    /// # Warning
     ///
     /// The returned object will be overwritten by the next [`Self::topology`] call for the same
-    /// prober. If you want to use more [`Topology`] objects in the same time you have to create
-    /// more [`Prober`] handlers.
+    /// prober. If you want to use multiple [`Topology`] objects at the same time you must create
+    /// multiple [`Prober`] handles.
     pub fn topology(&self) -> BlkIdResult<Topology<'_>> {
         unsafe { c_result(blkid_probe_get_topology(self.0), "blkid_probe_get_topology").map(Topology::new) }
     }
 
-    /// Sets extra hint for low-level prober. If the hint is set by NAME=value notation than value
-    /// is ignored. The [`Self::set_device`] and [`Self::reset_probe`] resets all hints.
+    /// Sets an extra hint for the low-level prober. If the hint is set by `NAME=value` notation
+    /// then the value is ignored. [`Self::set_device`] and [`Self::reset_probe`] reset all hints.
     ///
-    /// The hints are optional way how to force libblkid probing functions to check for example
+    /// Hints are an optional way to force libblkid probing functions to check, for example,
     /// another location.
     #[cfg(blkid = "2.37")]
     pub fn set_hint(&self, hint_name: &str, offset: u64) -> BlkIdResult<()> {
@@ -556,7 +561,7 @@ impl Prober {
         unsafe { c_result(blkid_probe_set_hint(self.0, name.as_ptr(), offset), "blkid_probe_set_hint").map(|_| ()) }
     }
 
-    /// Removes all previously defined probing hints. See also [`Self::set_hint`]
+    /// Removes all previously defined probing hints. See also [`Self::set_hint`].
     #[cfg(blkid = "2.37")]
     pub fn reset_hints(&self) {
         unsafe { blkid_probe_reset_hints(self.0) }

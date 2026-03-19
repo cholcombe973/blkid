@@ -11,7 +11,7 @@ impl<'a> Partition<'a> {
         Partition(part, PhantomData)
     }
 
-    /// Returns partition name some string if supported by PT (e.g. Mac) or None
+    /// Returns the partition name if supported by the partition table type (e.g. Mac), or `None`.
     pub fn name(&self) -> Option<String> {
         let name = unsafe { blkid_partition_get_name(self.0) };
         if name.is_null() {
@@ -21,13 +21,13 @@ impl<'a> Partition<'a> {
         }
     }
 
-    /// Returns partition flags (or attributes for gpt)
+    /// Returns partition flags (or attributes for GPT).
     pub fn flags(&self) -> u64 {
         unsafe { blkid_partition_get_flags(self.0) }
     }
 
-    /// Returns proposed partition number (e.g. 'N' from sda'N'). Note that the number is generated
-    /// by independently of your OS library.
+    /// Returns the proposed partition number (e.g. `N` from `sdaN`). Note that the number is
+    /// generated independently by libblkid, not by your OS.
     pub fn partno(&self) -> BlkIdResult<i32> {
         unsafe { c_result(blkid_partition_get_partno(self.0), "blkid_partition_get_partno") }
     }
@@ -77,8 +77,8 @@ impl<'a> Partition<'a> {
     /// 0: sda1     dos primary partition
     /// 1: sda2     dos primary partition
     /// -- bsd partition table (with in sda2)
-    /// 2: sda5  bds partition
-    /// 3: sda6  bds partition
+    /// 2: sda5  bsd partition
+    /// 3: sda6  bsd partition
     /// ```
     ///
     /// The library does not to use a separate partition table object for dos logical partitions
@@ -88,15 +88,15 @@ impl<'a> Partition<'a> {
         unsafe { c_result(blkid_partition_get_table(self.0), "blkid_partition_get_table").map(PartTable::new) }
     }
 
-    /// Returns partition type
+    /// Returns the partition type code.
     pub fn typ(&self) -> i32 {
         unsafe { blkid_partition_get_type(self.0) }
     }
 
-    /// Returns partition type is present string
+    /// Returns the partition type as a string, if available.
     ///
     /// The type string is supported by a small subset of partition tables (e.g. Mac and EFI GPT).
-    /// Note that GPT uses type UUID and this function returns this UUID as string.
+    /// Note that GPT uses type UUIDs and this function returns the UUID as a string.
     pub fn typ_string(&self) -> Option<String> {
         let ptr = unsafe { blkid_partition_get_type_string(self.0) };
         if ptr.is_null() {
@@ -106,7 +106,7 @@ impl<'a> Partition<'a> {
         }
     }
 
-    /// Returns partition UUID string if supported by PT (e.g. GPT)
+    /// Returns the partition UUID string if supported by the partition table type (e.g. GPT).
     pub fn uuid(&self) -> Option<String> {
         let ptr = unsafe { blkid_partition_get_uuid(self.0) };
         if ptr.is_null() {
@@ -116,13 +116,12 @@ impl<'a> Partition<'a> {
         }
     }
 
-    /// Returns `true` if the partitions is extended (dos, windows or linux) partition or `false`
-    /// if not
+    /// Returns `true` if the partition is an extended (DOS, Windows, or Linux) partition.
     pub fn is_extended(&self) -> bool {
         unsafe { blkid_partition_is_extended(self.0) == 1 }
     }
 
-    /// Returns `true` if the partitions is logical partition or `false` if not.
+    /// Returns `true` if the partition is a logical partition.
     ///
     /// # NOTE
     ///
@@ -131,7 +130,7 @@ impl<'a> Partition<'a> {
         unsafe { blkid_partition_is_logical(self.0) == 1 }
     }
 
-    /// Returns `true` if the partitions is primary partition or `false` if not.
+    /// Returns `true` if the partition is a primary partition.
     ///
     /// # NOTE
     ///
