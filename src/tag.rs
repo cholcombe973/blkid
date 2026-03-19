@@ -8,7 +8,7 @@ pub struct Tags {
 }
 
 impl Tags {
-    pub fn new(dev: &Dev) -> Tags {
+    pub fn new(dev: &Dev<'_>) -> Tags {
         let iter = unsafe { blkid_tag_iterate_begin(dev.0) };
         assert_ne!(iter, ptr::null_mut());
         Tags { iter }

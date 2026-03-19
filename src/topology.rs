@@ -1,9 +1,16 @@
 use blkid_sys::*;
+use std::marker::PhantomData;
+
+use crate::prober::Prober;
 
 /// Device topology information
-pub struct Topology(pub(crate) blkid_topology);
+pub struct Topology<'a>(pub(crate) blkid_topology, PhantomData<&'a Prober>);
 
-impl Topology {
+impl<'a> Topology<'a> {
+    pub(crate) fn new(topo: blkid_topology) -> Topology<'a> {
+        Topology(topo, PhantomData)
+    }
+
     /// Alignment offset in bytes or 0.
     pub fn alignment_offset(&self) -> u64 {
         unsafe { blkid_topology_get_alignment_offset(self.0) }.try_into().unwrap()

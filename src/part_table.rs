@@ -1,13 +1,17 @@
 use crate::{error::c_result, partition::Partition, BlkIdResult};
 use blkid_sys::*;
-use std::{ffi::CStr, str::FromStr};
+use std::{ffi::CStr, marker::PhantomData, str::FromStr};
 use strum_macros::{Display, EnumString};
 
 /// Information about a partition table
 #[derive(Debug)]
-pub struct PartTable(pub(crate) blkid_parttable);
+pub struct PartTable<'a>(pub(crate) blkid_parttable, PhantomData<&'a ()>);
 
-impl PartTable {
+impl<'a> PartTable<'a> {
+    pub(crate) fn new(table: blkid_parttable) -> PartTable<'a> {
+        PartTable(table, PhantomData)
+    }
+
     /// Returns partition table ID (for example GPT disk UUID).
     ///
     /// The ID is GPT disk UUID or DOS disk ID (in hex format).
@@ -32,12 +36,12 @@ impl PartTable {
     }
 
     /// Returns parent for nested partition tables
-    pub fn get_parent(&self) -> Option<Partition> {
+    pub fn get_parent(&self) -> Option<Partition<'a>> {
         let part = unsafe { blkid_parttable_get_parent(self.0) };
         if part.is_null() {
             None
         } else {
-            Some(Partition(part))
+            Some(Partition::new(part))
         }
     }
 

@@ -1,6 +1,6 @@
 [package]
 name = "blkid"
-version = "1.0.1"
+version = "2.0.0"
 edition = "2021"
 description = "Safe blkid-sys wrapper"
 documentation = "https://docs.rs/blkid"
@@ -16,6 +16,9 @@ libc = "^0.2"
 strum = "^0.23"
 strum_macros = "^0.23"
 thiserror = "^1.0"
+
+[dev-dependencies]
+trybuild = "1"
 
 [build-dependencies]
 pkg-config = "^0.3"

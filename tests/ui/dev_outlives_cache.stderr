@@ -1,0 +1,12 @@
+error[E0597]: `cache` does not live long enough
+  --> tests/ui/dev_outlives_cache.rs:11:9
+   |
+ 8 |     let dev = {
+   |         --- borrow later stored here
+ 9 |         let cache = Cache::new().unwrap();
+   |             ----- binding `cache` declared here
+10 |         cache.probe_all().unwrap();
+11 |         cache.get_dev("/dev/null", GetDevFlags::FIND).unwrap()
+   |         ^^^^^ borrowed value does not live long enough
+12 |     };
+   |     - `cache` dropped here while still borrowed

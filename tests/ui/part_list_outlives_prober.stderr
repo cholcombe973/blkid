@@ -1,0 +1,11 @@
+error[E0597]: `prober` does not live long enough
+  --> tests/ui/part_list_outlives_prober.rs:9:9
+   |
+ 7 |     let part_list = {
+   |         --------- borrow later stored here
+ 8 |         let prober = Prober::new().unwrap();
+   |             ------ binding `prober` declared here
+ 9 |         prober.part_list().unwrap()
+   |         ^^^^^^ borrowed value does not live long enough
+10 |     };
+   |     - `prober` dropped here while still borrowed

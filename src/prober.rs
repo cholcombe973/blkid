@@ -153,7 +153,7 @@ impl Prober {
     /// should use [`Self::set_device`] with options above.
     ///
     /// After successful signature removing the prober will be moved one step back and the next
-    /// [`Self::probe`] call will again call previously called probing function.
+    /// [`Self::do_probe`] call will again call previously called probing function.
     ///
     /// # Examples
     ///
@@ -444,8 +444,8 @@ impl Prober {
     /// The returned object will be overwritten by the next [`Self::part_list`] call for the same
     /// prober. If you want to use more [`PartList`] objects in the same time you have to create
     /// more [`Prober`] handlers.
-    pub fn part_list(&self) -> BlkIdResult<PartList> {
-        unsafe { c_result(blkid_probe_get_partitions(self.0)).map(PartList) }
+    pub fn part_list(&self) -> BlkIdResult<PartList<'_>> {
+        unsafe { c_result(blkid_probe_get_partitions(self.0)).map(PartList::new) }
     }
 
     /// Enables/disables the topology probing for non-binary interface
@@ -464,8 +464,8 @@ impl Prober {
     /// The returned object will be overwritten by the next [`Self::topology`] call for the same
     /// prober. If you want to use more [`Topology`] objects in the same time you have to create
     /// more [`Prober`] handlers.
-    pub fn topology(&self) -> BlkIdResult<Topology> {
-        unsafe { c_result(blkid_probe_get_topology(self.0)).map(Topology) }
+    pub fn topology(&self) -> BlkIdResult<Topology<'_>> {
+        unsafe { c_result(blkid_probe_get_topology(self.0)).map(Topology::new) }
     }
 
     /// Sets extra hint for low-level prober. If the hint is set by NAME=value notation than value

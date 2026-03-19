@@ -3,52 +3,56 @@ use bitflags::bitflags;
 use blkid_sys::*;
 use std::{
     ffi::{CStr, OsStr},
+    marker::PhantomData,
     os::unix::ffi::OsStrExt,
     path::Path,
     ptr,
 };
 
 /// Wrapper around device iterator
-pub struct Devs {
+pub struct Devs<'a> {
     pub(crate) iter: blkid_dev_iterate,
+    _marker: PhantomData<&'a Cache>,
 }
 
-impl Drop for Devs {
+impl Drop for Devs<'_> {
     fn drop(&mut self) {
         unsafe { blkid_dev_iterate_end(self.iter) }
     }
 }
 
-impl Iterator for Devs {
-    type Item = Dev;
+impl<'a> Iterator for Devs<'a> {
+    type Item = Dev<'a>;
 
     fn next(&mut self) -> Option<Self::Item> {
         let mut d: blkid_dev = ptr::null_mut();
         unsafe {
             match blkid_dev_next(self.iter, &mut d) {
-                0 => Some(Dev::new(d)),
+                0 => Some(Dev(d, PhantomData)),
                 _ => None,
             }
         }
     }
 }
 
-impl Devs {
+impl<'a> Devs<'a> {
     /// Creates wrapper around device
-    pub fn new(cache: &Cache) -> Devs {
+    pub fn new(cache: &'a Cache) -> Devs<'a> {
         let iter = unsafe { blkid_dev_iterate_begin(cache.0) };
         assert_ne!(iter, ptr::null_mut());
-        Devs { iter }
+        Devs {
+            iter,
+            _marker: PhantomData,
+        }
     }
 }
 
 /// The device object keeps information about one device
-pub struct Dev(pub(crate) blkid_dev);
+pub struct Dev<'a>(pub(crate) blkid_dev, PhantomData<&'a Cache>);
 
-impl Dev {
-    /// Creates a new device from raw pointer
-    pub fn new(dev: blkid_dev) -> Dev {
-        Dev(dev)
+impl<'a> Dev<'a> {
+    pub(crate) fn new(dev: blkid_dev) -> Dev<'a> {
+        Dev(dev, PhantomData)
     }
 
     /// Returns device name. This name does not have to be canonical (real path) name, but for

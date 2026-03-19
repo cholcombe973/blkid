@@ -4,6 +4,11 @@ const BLKID_MIN_REQ_VERSION: &str = "2.21.0";
 const BLKID_CHANGED_MIN_VERSIONS: &[usize] = &[23, 24, 25, 30, 31, 36, 37];
 
 fn main() {
+    // Declare expected cfg values so rustc doesn't warn about unexpected cfgs.
+    for min_num in BLKID_CHANGED_MIN_VERSIONS {
+        println!("cargo:rustc-check-cfg=cfg({}, values(\"2.{}\"))", LIB_NAME, min_num);
+    }
+
     let libblkid = pkg_config::Config::new()
         .atleast_version(BLKID_MIN_REQ_VERSION)
         .probe(LIB_NAME)

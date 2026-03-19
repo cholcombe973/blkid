@@ -64,7 +64,7 @@ impl Cache {
     }
 
     /// Returns iterator over all devices are found by probe
-    pub fn devs(&self) -> Devs {
+    pub fn devs(&self) -> Devs<'_> {
         Devs::new(self)
     }
 
@@ -72,17 +72,17 @@ impl Cache {
     ///
     /// If there is no entry with the specified device name, and the [`GetDevFlag::CREATE`] is set,
     /// then create an empty device entry
-    pub fn get_dev(&self, name: &str, flags: GetDevFlags) -> BlkIdResult<Dev> {
+    pub fn get_dev(&self, name: &str, flags: GetDevFlags) -> BlkIdResult<Dev<'_>> {
         let devname = CString::new(name)?;
         let dev = unsafe { c_result(blkid_get_dev(self.0, devname.as_ptr(), flags.bits())) }?;
-        Ok(Dev(dev))
+        Ok(Dev::new(dev))
     }
 
     /// Returns a device which matches a particular [`Tag`].
     ///
     /// If there is more than one device that matches the search specification, it returns the one
     /// with the highest priority value. This allows us to give preference to `EVMS` or `LVM` devices
-    pub fn find_dev_with_tag(&self, tag: Tag) -> BlkIdResult<Option<Dev>> {
+    pub fn find_dev_with_tag(&self, tag: Tag) -> BlkIdResult<Option<Dev<'_>>> {
         let name = CString::new(tag.name())?;
         let value = CString::new(tag.value())?;
         let dev = unsafe { blkid_find_dev_with_tag(self.0, name.as_ptr(), value.as_ptr()) };
@@ -90,7 +90,7 @@ impl Cache {
         if dev.is_null() {
             Ok(None)
         } else {
-            Ok(Some(Dev(dev)))
+            Ok(Some(Dev::new(dev)))
         }
     }
 

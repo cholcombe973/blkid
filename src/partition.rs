@@ -1,12 +1,16 @@
 use crate::{error::c_result, part_table::PartTable, BlkIdResult};
 use blkid_sys::*;
-use std::ffi::CStr;
+use std::{ffi::CStr, marker::PhantomData};
 
 /// Information about a partition
 #[derive(Debug)]
-pub struct Partition(pub(crate) blkid_partition);
+pub struct Partition<'a>(pub(crate) blkid_partition, PhantomData<&'a ()>);
 
-impl Partition {
+impl<'a> Partition<'a> {
+    pub(crate) fn new(part: blkid_partition) -> Partition<'a> {
+        Partition(part, PhantomData)
+    }
+
     /// Returns partition name some string if supported by PT (e.g. Mac) or None
     pub fn name(&self) -> Option<String> {
         let name = unsafe { blkid_partition_get_name(self.0) };
@@ -80,8 +84,8 @@ impl Partition {
     /// The library does not to use a separate partition table object for dos logical partitions
     /// (partitions within extended partition). It's possible to differentiate between logical,
     /// extended and primary partitions by `Self::is_{extended, primary, logical}`.
-    pub fn table(&self) -> BlkIdResult<PartTable> {
-        unsafe { c_result(blkid_partition_get_table(self.0)).map(PartTable) }
+    pub fn table(&self) -> BlkIdResult<PartTable<'a>> {
+        unsafe { c_result(blkid_partition_get_table(self.0)).map(PartTable::new) }
     }
 
     /// Returns partition type
